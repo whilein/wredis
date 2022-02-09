@@ -27,6 +27,7 @@ import org.jetbrains.annotations.NotNull;
 import w.redis.Redis;
 import w.redis.RedisCommand;
 import w.redis.RedisResponse;
+import w.redis.util.NumberUtils;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -218,7 +219,7 @@ public final class NioRedis implements Redis {
             return resize(buffer.capacity() * 2);
         }
 
-        private ByteBuffer resize(final int to) {
+        public ByteBuffer resize(final int to) {
             val newBuffer = ByteBuffer.allocate(to);
             buffer.flip();
             newBuffer.put(buffer);
@@ -226,30 +227,31 @@ public final class NioRedis implements Redis {
             return this.buffer = newBuffer;
         }
 
-        public void writeCRLF() {
+        public void writeCrlf() {
             buffer.put((byte) '\r').put((byte) '\n');
         }
 
-        private void writeNoArgCommand(final String command) {
-            ensure(2);
-            buffer.put((byte) '*').put((byte) '0');
+        public void writeNoArgCommand(final String command) {
+            ensure(4);
+            buffer.put((byte) '*').put((byte) '1');
+            writeCrlf();
 
             val commandLength = command.length();
             writeLength('$', commandLength);
 
             ensure(commandLength);
             writeAscii(command, commandLength);
-            writeCRLF();
+            writeCrlf();
         }
 
-        private void writeCommand(final String command, final int arguments) {
+        public void writeCommand(final String command, final int arguments) {
             writeLength('*', arguments + 1);
             val commandLength = command.length();
             writeLength('$', commandLength);
 
             ensure(commandLength);
             writeAscii(command, commandLength);
-            writeCRLF();
+            writeCrlf();
         }
 
         public void writeAscii(final String ascii, final int len) {
@@ -258,40 +260,97 @@ public final class NioRedis implements Redis {
             }
         }
 
-        public void writeLength(final char prefix, final int length) {
-            val lengthAsString = String.valueOf(length);
-            val lengthOfLength = lengthAsString.length();
+        private int writeLong(int position, long value) {
+            buffer.position(position);
 
-            ensure(3 + lengthOfLength);
-            buffer.put((byte) prefix);
+            while (value > 0) {
+                buffer.put(--position, (byte) ((byte) (value % 10) + '0'));
+                value /= 10;
+            }
 
-            writeAscii(lengthAsString, lengthOfLength);
-            writeCRLF();
+            return position;
         }
 
-        private void writeAscii(final String ascii) {
-            val length = ascii.length();
+
+        private int writeInt(int position, int value) {
+            buffer.position(position);
+
+            while (value > 0) {
+                buffer.put(--position, (byte) ((byte) (value % 10) + '0'));
+                value /= 10;
+            }
+
+            return position;
+        }
+
+        public void writeLength(final char prefix, final int length) {
+            val lengthOfNumber = NumberUtils.getIntLength(length);
+
+            ensure(3 + lengthOfNumber);
+            buffer.put((byte) prefix);
+
+            val position = buffer.position() + lengthOfNumber;
+            writeInt(position, length);
+            writeCrlf();
+        }
+
+        public void writeNumber(final int rawNumber) {
+            val negative = rawNumber < 0;
+
+            final int number;
+            final int length;
+
+            if (negative) {
+                length = NumberUtils.getIntLength(number = -rawNumber) + 1;
+            } else {
+                length = NumberUtils.getIntLength(number = rawNumber);
+            }
 
             writeLength('$', length);
 
             ensure(length + 2);
-            writeAscii(ascii, length);
-            writeCRLF();
+
+            val position = buffer.position() + length;
+            val lastPosition = writeInt(position, number);
+
+            if (negative) {
+                buffer.put(lastPosition - 1, (byte) '-');
+            }
+
+            writeCrlf();
         }
 
-        public void writeNumber(final int number) {
-            writeAscii(Integer.toString(number));
-        }
+        public void writeNumber(final long rawNumber) {
+            val negative = rawNumber < 0;
 
-        public void writeNumber(final long number) {
-            writeAscii(Long.toString(number));
+            final long number;
+            final int length;
+
+            if (negative) {
+                length = NumberUtils.getLongLength(number = -rawNumber) + 1;
+            } else {
+                length = NumberUtils.getLongLength(number = rawNumber);
+            }
+
+            writeLength('$', length);
+
+            ensure(length + 2);
+
+            val position = buffer.position() + length;
+            val lastPosition = writeLong(position, number);
+
+            if (negative) {
+                buffer.put(lastPosition - 1, (byte) '-');
+            }
+
+            writeCrlf();
         }
 
         private void writeEmptyString() {
             ensure(4);
 
             buffer.put((byte) '$').put((byte) '0');
-            writeCRLF();
+            writeCrlf();
         }
 
         public void write(final byte[] bytes) {
@@ -306,7 +365,7 @@ public final class NioRedis implements Redis {
 
             ensure(blobLength + 2);
             buffer.put(bytes);
-            writeCRLF();
+            writeCrlf();
         }
 
         public void write(final String text) {
@@ -322,7 +381,7 @@ public final class NioRedis implements Redis {
 
             ensure(bytes.length + 2);
             buffer.put(bytes);
-            writeCRLF();
+            writeCrlf();
         }
     }
 

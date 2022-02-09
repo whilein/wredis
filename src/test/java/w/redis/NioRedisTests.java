@@ -51,14 +51,29 @@ final class NioRedisTests {
     }
 
     @Test
-    void intArgument() {
-        redis.command("SET", 2).argument("COUNTER").argument("0");
-        redis.command("INCRBY", 2).argument("COUNTER").argument(10);
+    void longArgument() {
+        redis.command("SET", 2).argument("COUNTER").argument("15");
+        redis.command("DECRBY", 2).argument("COUNTER").argument(10L);
+        redis.command("DECRBY", 2).argument("COUNTER").argument(-10L);
         redis.flush();
 
         val read = redis.read();
         assertEquals("OK", read.nextString()); // SET
-        assertEquals(10, read.nextInt()); // INCRBY
+        assertEquals(5, read.nextLong()); // DECRBY
+        assertEquals(15, read.nextLong()); // DECRBY
+    }
+
+    @Test
+    void intArgument() {
+        redis.command("SET", 2).argument("COUNTER").argument("5");
+        redis.command("INCRBY", 2).argument("COUNTER").argument(10);
+        redis.command("INCRBY", 2).argument("COUNTER").argument(-10);
+        redis.flush();
+
+        val read = redis.read();
+        assertEquals("OK", read.nextString()); // SET
+        assertEquals(15, read.nextInt()); // INCRBY
+        assertEquals(5, read.nextInt()); // INCRBY
     }
 
     @Test
