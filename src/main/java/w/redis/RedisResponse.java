@@ -18,10 +18,14 @@ package w.redis;
 
 import org.jetbrains.annotations.NotNull;
 
+import java.nio.ByteBuffer;
+
 /**
  * @author whilein
  */
 public interface RedisResponse {
+
+    void setBuffer(@NotNull ByteBuffer buffer);
 
     boolean hasNext();
 

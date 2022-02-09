@@ -43,51 +43,58 @@ final class NioRedisTests {
 
     @Test
     void readString() {
-        redis.command("PING");
-        redis.flush();
-
-        val response = redis.read();
+        val response = redis.command("PING").flushAndRead();
         assertEquals("PONG", response.nextString());
     }
 
     @Test
     void longArgument() {
-        redis.command("SET", 2).argument("COUNTER").argument("15");
-        redis.command("DECRBY", 2).argument("COUNTER").argument(10L);
-        redis.command("DECRBY", 2).argument("COUNTER").argument(-10L);
-        redis.flush();
+        val response = redis
+                .command("SET", 2)
+                .argument("COUNTER")
+                .argument("15")
 
-        val read = redis.read();
-        assertEquals("OK", read.nextString()); // SET
-        assertEquals(5, read.nextLong()); // DECRBY
-        assertEquals(15, read.nextLong()); // DECRBY
+                .command("DECRBY", 2)
+                .argument("COUNTER")
+                .argument(10L)
+
+                .command("DECRBY", 2)
+                .argument("COUNTER")
+                .argument(-10L)
+
+                .flushAndRead();
+
+        assertEquals("OK", response.nextString()); // SET
+        assertEquals(5, response.nextLong()); // DECRBY
+        assertEquals(15, response.nextLong()); // DECRBY
     }
 
     @Test
     void intArgument() {
-        redis.command("SET", 2)
+        val response = redis
+                .command("SET", 2)
                 .argument("COUNTER")
-                .argument("5");
+                .argument("5")
 
-        redis.command("INCRBY", 2)
+                .command("INCRBY", 2)
                 .argument("COUNTER")
-                .argument(10);
+                .argument(10)
 
-        redis.command("INCRBY", 2)
+                .command("INCRBY", 2)
                 .argument("COUNTER")
-                .argument(-10);
+                .argument(-10)
+                .flushAndRead();
 
-        redis.flush();
-
-        val read = redis.read();
-        assertEquals("OK", read.nextString()); // SET
-        assertEquals(15, read.nextInt()); // INCRBY
-        assertEquals(5, read.nextInt()); // INCRBY
+        assertEquals("OK", response.nextString()); // SET
+        assertEquals(15, response.nextInt()); // INCRBY
+        assertEquals(5, response.nextInt()); // INCRBY
     }
 
     @Test
     void readArray() {
-        redis.command("DEL", 1).argument("VALUES");
+        redis
+                .command("DEL", 1)
+                .argument("VALUES");
 
         val values = new HashSet<String>();
 
@@ -95,13 +102,17 @@ final class NioRedisTests {
             val value = String.valueOf(i);
             values.add(value);
 
-            redis.command("SADD", 2).argument("VALUES").argument(value);
+            redis
+                    .command("SADD", 2)
+                    .argument("VALUES")
+                    .argument(value);
         }
 
-        redis.command("SMEMBERS", 1).argument("VALUES");
-        redis.flush();
+        redis
+                .command("SMEMBERS", 1)
+                .argument("VALUES");
 
-        val response = redis.read();
+        val response = redis.flushAndRead();
         response.skip(11); // del + 10 sadd
 
         val result = new HashSet<String>();
@@ -116,14 +127,13 @@ final class NioRedisTests {
 
     @Test
     void readNumber() {
-        redis.command("DEL", 1).argument("VALUES");
-        redis.command("SCARD", 1).argument("VALUES");
-        redis.command("SADD", 2).argument("VALUES").argument("ELEMENT");
-        redis.command("SCARD", 1).argument("VALUES");
+        val response = redis
+                .command("DEL", 1).argument("VALUES")
+                .command("SCARD", 1).argument("VALUES")
+                .command("SADD", 2).argument("VALUES").argument("ELEMENT")
+                .command("SCARD", 1).argument("VALUES")
+                .flushAndRead();
 
-        redis.flush();
-
-        val response = redis.read();
         response.skip(); // del
         assertEquals(0, response.nextInt());
         response.skip(); // sadd

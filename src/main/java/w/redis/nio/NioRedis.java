@@ -26,7 +26,6 @@ import lombok.val;
 import org.jetbrains.annotations.NotNull;
 import w.redis.AsciiWriter;
 import w.redis.Redis;
-import w.redis.RedisCommand;
 import w.redis.RedisResponse;
 import w.redis.util.NumberUtils;
 
@@ -45,7 +44,7 @@ import java.nio.charset.StandardCharsets;
  * @author whilein
  */
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-@AllArgsConstructor(access = AccessLevel.PRIVATE)
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public final class NioRedis implements Redis {
 
     InetSocketAddress address;
@@ -56,6 +55,8 @@ public final class NioRedis implements Redis {
 
     @NonFinal
     NioRedisSession session;
+
+    RedisResponse response;
 
     @Override
     public boolean isAvailable() {
@@ -82,7 +83,7 @@ public final class NioRedis implements Redis {
                 address,
                 new DynWriteBuffer(ByteBuffer.allocate(8192), AsciiWriter.defaultAsciiWriter()),
                 new DynReadBuffer(ByteBuffer.allocate(8192)),
-                null
+                NioRedisResponse.create()
         );
     }
 
@@ -100,15 +101,50 @@ public final class NioRedis implements Redis {
     }
 
     @Override
-    public @NotNull RedisCommand command(final @NotNull String name, final int arguments) {
+    public @NotNull Redis command(final @NotNull String name, final int arguments) {
         write.writeCommand(name, arguments);
 
-        return new NioRedisCommand(write);
+        return this;
     }
 
     @Override
-    public void command(final @NotNull String name) {
+    public @NotNull Redis argument(final int number) {
+        write.writeNumber(number);
+
+        return this;
+    }
+
+    @Override
+    public @NotNull Redis argument(final long number) {
+        write.writeNumber(number);
+
+        return this;
+    }
+
+    @Override
+    public @NotNull Redis argument(final @NotNull String text) {
+        return argument(text, StandardCharsets.UTF_8);
+    }
+
+    @Override
+    public @NotNull Redis argument(final @NotNull String text, final @NotNull Charset charset) {
+        write.writeText(text, charset);
+
+        return this;
+    }
+
+    @Override
+    public @NotNull Redis argument(final byte @NotNull [] bytes) {
+        write.writeBytes(bytes);
+
+        return this;
+    }
+
+    @Override
+    public @NotNull Redis command(final @NotNull String name) {
         write.writeNoArgCommand(name);
+
+        return this;
     }
 
     @Override
@@ -134,6 +170,12 @@ public final class NioRedis implements Redis {
     }
 
     @Override
+    public @NotNull RedisResponse flushAndRead() {
+        flush();
+        return read();
+    }
+
+    @Override
     @SneakyThrows
     public @NotNull RedisResponse read() {
         ensureConnection();
@@ -153,7 +195,9 @@ public final class NioRedis implements Redis {
 
         buffer.flip();
 
-        return NioRedisResponse.create(buffer);
+        response.setBuffer(buffer);
+
+        return response;
     }
 
     @Override
@@ -163,47 +207,6 @@ public final class NioRedis implements Redis {
             session.selector.close();
             session = null;
         }
-    }
-
-    @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-    private static final class NioRedisCommand implements RedisCommand {
-
-        DynWriteBuffer buffer;
-
-        @Override
-        public @NotNull RedisCommand argument(final int number) {
-            buffer.writeNumber(number);
-
-            return this;
-        }
-
-        @Override
-        public @NotNull RedisCommand argument(final long number) {
-            buffer.writeNumber(number);
-
-            return this;
-        }
-
-        @Override
-        public @NotNull RedisCommand argument(final @NotNull String text) {
-            return argument(text, StandardCharsets.UTF_8);
-        }
-
-        @Override
-        public @NotNull RedisCommand argument(final @NotNull String text, final @NotNull Charset charset) {
-            buffer.writeText(text, charset);
-
-            return this;
-        }
-
-        @Override
-        public @NotNull RedisCommand argument(final byte @NotNull [] bytes) {
-            buffer.writeBytes(bytes);
-
-            return this;
-        }
-
     }
 
     @AllArgsConstructor

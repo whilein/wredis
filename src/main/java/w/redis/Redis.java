@@ -18,6 +18,8 @@ package w.redis;
 
 import org.jetbrains.annotations.NotNull;
 
+import java.nio.charset.Charset;
+
 /**
  * @author whilein
  */
@@ -29,10 +31,22 @@ public interface Redis extends AutoCloseable {
 
     void flush();
 
+    @NotNull RedisResponse flushAndRead();
+
     @NotNull RedisResponse read();
 
-    @NotNull RedisCommand command(@NotNull String name, int arguments);
+    @NotNull Redis command(@NotNull String name, int arguments);
 
-    void command(@NotNull String name);
+    @NotNull Redis argument(int number);
+
+    @NotNull Redis argument(long number);
+
+    @NotNull Redis argument(@NotNull String text, @NotNull Charset charset);
+
+    @NotNull Redis argument(@NotNull String text);
+
+    @NotNull Redis argument(byte @NotNull [] bytes);
+
+    @NotNull Redis command(@NotNull String name);
 
 }

@@ -17,7 +17,7 @@
 package w.redis.nio;
 
 import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
+import lombok.NoArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.NonFinal;
@@ -33,8 +33,8 @@ import java.util.function.IntConsumer;
 /**
  * @author whilein
  */
-@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+@FieldDefaults(level = AccessLevel.PRIVATE)
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class NioRedisResponse implements RedisResponse {
 
     private static final int STATE_ARRAY = 5;
@@ -59,14 +59,18 @@ public final class NioRedisResponse implements RedisResponse {
         return "";
     }
 
-    public static @NotNull RedisResponse create(final @NotNull ByteBuffer buffer) {
-        return new NioRedisResponse(buffer);
+    ByteBuffer buffer;
+    int state;
+
+    @Override
+    public void setBuffer(final @NotNull ByteBuffer buffer) {
+        this.buffer = buffer;
+        this.state = 0;
     }
 
-    ByteBuffer buffer;
-
-    @NonFinal
-    int state;
+    public static @NotNull RedisResponse create() {
+        return new NioRedisResponse();
+    }
 
     private void resetState() {
         state = STATE_UNKNOWN;
