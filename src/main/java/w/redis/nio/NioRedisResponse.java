@@ -117,6 +117,13 @@ public final class NioRedisResponse implements RedisResponse {
     }
 
     @Override
+    public String toString() {
+        return "\"" + new String(buffer.array(), 0, buffer.limit())
+                .replace("\r", "\\r")
+                .replace("\n", "\\n") + "\"";
+    }
+
+    @Override
     public boolean isError() {
         return readState() == STATE_ERR;
     }

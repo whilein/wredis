@@ -45,6 +45,20 @@ final class NioRedisTests {
     void readString() {
         redis.command("PING");
         redis.flush();
+
+        val response = redis.read();
+        assertEquals("PONG", response.nextString());
+    }
+
+    @Test
+    void intArgument() {
+        redis.command("SET", 2).argument("COUNTER").argument("0");
+        redis.command("INCRBY", 2).argument("COUNTER").argument(10);
+        redis.flush();
+
+        val read = redis.read();
+        assertEquals("OK", read.nextString()); // SET
+        assertEquals(10, read.nextInt()); // INCRBY
     }
 
     @Test

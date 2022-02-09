@@ -172,6 +172,13 @@ public final class NioRedis implements Redis {
         DynBuffer buffer;
 
         @Override
+        public @NotNull RedisCommand argument(final int number) {
+            buffer.writeNumber(number);
+
+            return this;
+        }
+
+        @Override
         public @NotNull RedisCommand argument(final long number) {
             buffer.writeNumber(number);
 
@@ -262,15 +269,22 @@ public final class NioRedis implements Redis {
             writeCRLF();
         }
 
-        public void writeNumber(final long number) {
-            val numberAsString = Long.toString(number);
-            val lengthOfNumber = numberAsString.length();
+        private void writeAscii(final String ascii) {
+            val length = ascii.length();
 
-            ensure(lengthOfNumber + 1);
-            buffer.put((byte) ':');
+            writeLength('$', length);
 
-            writeAscii(numberAsString, lengthOfNumber);
+            ensure(length + 2);
+            writeAscii(ascii, length);
             writeCRLF();
+        }
+
+        public void writeNumber(final int number) {
+            writeAscii(Integer.toString(number));
+        }
+
+        public void writeNumber(final long number) {
+            writeAscii(Long.toString(number));
         }
 
         private void writeEmptyString() {

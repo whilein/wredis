@@ -23,10 +23,12 @@ import org.jetbrains.annotations.NotNull;
  */
 public interface RedisCommand {
 
+    @NotNull RedisCommand argument(int number);
+
     @NotNull RedisCommand argument(long number);
 
     @NotNull RedisCommand argument(@NotNull String text);
 
-    @NotNull RedisCommand argument(byte @NotNull[] bytes);
+    @NotNull RedisCommand argument(byte @NotNull [] bytes);
 
 }
