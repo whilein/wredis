@@ -108,7 +108,7 @@ public final class NioRedis implements Redis {
 
     @Override
     public void command(final @NotNull String name) {
-        write.writeCommand(name, 0);
+        write.writeNoArgCommand(name);
     }
 
     @Override
