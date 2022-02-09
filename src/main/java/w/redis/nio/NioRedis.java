@@ -24,6 +24,7 @@ import lombok.experimental.FieldDefaults;
 import lombok.experimental.NonFinal;
 import lombok.val;
 import org.jetbrains.annotations.NotNull;
+import w.redis.AsciiWriter;
 import w.redis.Redis;
 import w.redis.RedisCommand;
 import w.redis.RedisResponse;
@@ -37,20 +38,21 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
 /**
  * @author whilein
  */
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public final class NioRedis implements Redis {
 
     InetSocketAddress address;
 
-    DynBuffer write;
+    DynWriteBuffer write;
 
-    DynBuffer read;
+    DynReadBuffer read;
 
     @NonFinal
     NioRedisSession session;
@@ -66,6 +68,11 @@ public final class NioRedis implements Redis {
         }
     }
 
+    @Override
+    public void setAsciiWriter(final @NotNull AsciiWriter asciiWriter) {
+        write.asciiWriter = asciiWriter;
+    }
+
     public static @NotNull Redis create(final @NotNull InetAddress address, final int port) {
         return create(new InetSocketAddress(address, port));
     }
@@ -73,8 +80,9 @@ public final class NioRedis implements Redis {
     public static @NotNull Redis create(final @NotNull InetSocketAddress address) {
         return new NioRedis(
                 address,
-                new DynBuffer(ByteBuffer.allocate(1024)),
-                new DynBuffer(ByteBuffer.allocate(1024))
+                new DynWriteBuffer(ByteBuffer.allocate(8192), AsciiWriter.defaultAsciiWriter()),
+                new DynReadBuffer(ByteBuffer.allocate(8192)),
+                null
         );
     }
 
@@ -89,15 +97,6 @@ public final class NioRedis implements Redis {
 
             session = new NioRedisSession(channel, selector);
         }
-    }
-
-    @Override
-    public void auth(final @NotNull String username, final @NotNull String password) {
-        command("AUTH", 2)
-                .argument(username)
-                .argument(password);
-
-        flush();
     }
 
     @Override
@@ -170,7 +169,7 @@ public final class NioRedis implements Redis {
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     private static final class NioRedisCommand implements RedisCommand {
 
-        DynBuffer buffer;
+        DynWriteBuffer buffer;
 
         @Override
         public @NotNull RedisCommand argument(final int number) {
@@ -188,14 +187,19 @@ public final class NioRedis implements Redis {
 
         @Override
         public @NotNull RedisCommand argument(final @NotNull String text) {
-            buffer.write(text);
+            return argument(text, StandardCharsets.UTF_8);
+        }
+
+        @Override
+        public @NotNull RedisCommand argument(final @NotNull String text, final @NotNull Charset charset) {
+            buffer.writeText(text, charset);
 
             return this;
         }
 
         @Override
         public @NotNull RedisCommand argument(final byte @NotNull [] bytes) {
-            buffer.write(bytes);
+            buffer.writeBytes(bytes);
 
             return this;
         }
@@ -203,17 +207,8 @@ public final class NioRedis implements Redis {
     }
 
     @AllArgsConstructor
-    private static final class DynBuffer {
+    private static abstract class DynBuffer {
         ByteBuffer buffer;
-
-        private void ensure(final int len) {
-            final int requiredCapacity = buffer.position() + len;
-            final int currentCapacity = buffer.capacity();
-
-            if (requiredCapacity > currentCapacity) {
-                resize(Math.min(requiredCapacity, currentCapacity * 2));
-            }
-        }
 
         public ByteBuffer resize() {
             return resize(buffer.capacity() * 2);
@@ -226,6 +221,36 @@ public final class NioRedis implements Redis {
 
             return this.buffer = newBuffer;
         }
+
+    }
+
+    private static final class DynReadBuffer extends DynBuffer {
+
+        public DynReadBuffer(final ByteBuffer buffer) {
+            super(buffer);
+        }
+
+    }
+
+    private static final class DynWriteBuffer extends DynBuffer {
+
+        AsciiWriter asciiWriter;
+
+        public DynWriteBuffer(final ByteBuffer buffer, final AsciiWriter asciiWriter) {
+            super(buffer);
+
+            this.asciiWriter = asciiWriter;
+        }
+
+        private void ensure(final int len) {
+            final int requiredCapacity = buffer.position() + len;
+            final int currentCapacity = buffer.capacity();
+
+            if (requiredCapacity > currentCapacity) {
+                resize(Math.min(requiredCapacity, currentCapacity * 2));
+            }
+        }
+
 
         public void writeCrlf() {
             buffer.put((byte) '\r').put((byte) '\n');
@@ -240,7 +265,7 @@ public final class NioRedis implements Redis {
             writeLength('$', commandLength);
 
             ensure(commandLength);
-            writeAscii(command, commandLength);
+            writeAscii(command);
             writeCrlf();
         }
 
@@ -250,14 +275,12 @@ public final class NioRedis implements Redis {
             writeLength('$', commandLength);
 
             ensure(commandLength);
-            writeAscii(command, commandLength);
+            writeAscii(command);
             writeCrlf();
         }
 
-        public void writeAscii(final String ascii, final int len) {
-            for (int i = 0; i < len; i++) {
-                buffer.put((byte) ascii.charAt(i));
-            }
+        public void writeAscii(final String ascii) {
+            asciiWriter.write(ascii, buffer);
         }
 
         private int writeLong(int position, long value) {
@@ -353,7 +376,7 @@ public final class NioRedis implements Redis {
             writeCrlf();
         }
 
-        public void write(final byte[] bytes) {
+        public void writeBytes(final byte[] bytes) {
             val blobLength = bytes.length;
 
             if (blobLength == 0) {
@@ -368,19 +391,28 @@ public final class NioRedis implements Redis {
             writeCrlf();
         }
 
-        public void write(final String text) {
+        public void writeText(final String text, final Charset cs) {
             if (text.length() == 0) {
                 writeEmptyString();
                 return;
             }
 
-            val bytes = text.getBytes(StandardCharsets.UTF_8);
+            if (cs == StandardCharsets.US_ASCII) {
+                val textLength = text.length();
+                writeLength('$', textLength);
 
-            val textLength = bytes.length;
-            writeLength('$', textLength);
+                ensure(textLength + 2);
+                writeAscii(text);
+            } else {
+                val bytes = text.getBytes(cs);
 
-            ensure(bytes.length + 2);
-            buffer.put(bytes);
+                val textLength = bytes.length;
+                writeLength('$', textLength);
+
+                ensure(textLength + 2);
+                buffer.put(bytes);
+            }
+
             writeCrlf();
         }
     }

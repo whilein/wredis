@@ -30,12 +30,17 @@
 public class Main {
     public static void main(final String[] args) {
         Redis redis = NioRedis.create(new InetSocketAddress(host, port));
-        redis.auth(username, password);
+
+        redis.command("AUTH", 2)
+                .argument(username)
+                .argument(password);
 
         redis.command("PING");
         redis.flush();
 
         RedisResponse response = redis.read();
+        response.skip(); // пропускаем ответ на AUTH
+
         boolean pong = "PONG".equals(response.nextString());
     }
 }

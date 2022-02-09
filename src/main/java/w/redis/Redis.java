@@ -25,7 +25,7 @@ public interface Redis extends AutoCloseable {
 
     boolean isAvailable();
 
-    void auth(@NotNull String username, @NotNull String password);
+    void setAsciiWriter(@NotNull AsciiWriter asciiWriter);
 
     void flush();
 

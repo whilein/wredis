@@ -65,9 +65,18 @@ final class NioRedisTests {
 
     @Test
     void intArgument() {
-        redis.command("SET", 2).argument("COUNTER").argument("5");
-        redis.command("INCRBY", 2).argument("COUNTER").argument(10);
-        redis.command("INCRBY", 2).argument("COUNTER").argument(-10);
+        redis.command("SET", 2)
+                .argument("COUNTER")
+                .argument("5");
+
+        redis.command("INCRBY", 2)
+                .argument("COUNTER")
+                .argument(10);
+
+        redis.command("INCRBY", 2)
+                .argument("COUNTER")
+                .argument(-10);
+
         redis.flush();
 
         val read = redis.read();

@@ -18,6 +18,8 @@ package w.redis;
 
 import org.jetbrains.annotations.NotNull;
 
+import java.nio.charset.Charset;
+
 /**
  * @author whilein
  */
@@ -26,6 +28,8 @@ public interface RedisCommand {
     @NotNull RedisCommand argument(int number);
 
     @NotNull RedisCommand argument(long number);
+
+    @NotNull RedisCommand argument(@NotNull String text, @NotNull Charset charset);
 
     @NotNull RedisCommand argument(@NotNull String text);
 
