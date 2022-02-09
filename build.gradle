@@ -40,6 +40,7 @@ dependencyUpdates {
 
 group "io.github.whilein"
 version releaseVersion
+description "Lightweight and fast redis client for java"
 
 apply from: new File(rootDir, "libs.gradle")
 
