@@ -20,7 +20,6 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.experimental.FieldDefaults;
-import lombok.experimental.NonFinal;
 import lombok.val;
 import org.jetbrains.annotations.NotNull;
 import w.redis.RedisResponse;
@@ -198,24 +197,58 @@ public final class NioRedisResponse implements RedisResponse {
         return negative;
     }
 
-    @NonFinal
-    long readLongValue;
-
-    @NonFinal
-    int readIntValue;
-
     private long readLong() {
-        readLongValue = 0;
+        byte prev = 0, value;
 
-        val negative = readNumber(digit -> readLongValue = readLongValue * 10L + digit);
-        return negative ? -readLongValue : readLongValue;
+        boolean negative = false;
+        long result = 0;
+
+        while (true) {
+            value = buffer.get();
+
+            if (prev == 0 && value == '-') {
+                negative = true;
+            } else if (value == '\n' && prev == '\r') {
+                break;
+            }
+
+            prev = value;
+
+            val digit = digit((char) value);
+
+            if (digit != -1) {
+                result = result * 10 + digit;
+            }
+        }
+
+        return negative ? -result : result;
     }
 
     private int readInt() {
-        readIntValue = 0;
+        byte prev = 0, value;
 
-        val negative = readNumber(digit -> readIntValue = readIntValue * 10 + digit);
-        return negative ? -readIntValue : readIntValue;
+        boolean negative = false;
+        int result = 0;
+
+        while (true) {
+            value = buffer.get();
+
+            if (prev == 0 && value == '-') {
+                negative = true;
+            } else if (value == '\n' && prev == '\r') {
+                break;
+            }
+
+            prev = value;
+
+            val digit = digit((char) value);
+
+            if (digit != -1) {
+                result = result * 10 + digit;
+            }
+        }
+
+        return negative ? -result : result;
     }
 
     private void skipUntilCrlf() {
