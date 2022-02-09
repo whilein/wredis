@@ -56,11 +56,27 @@ publishing {
 
                 url = "https://github.com/whilein/wredis"
 
+                organization {
+                    name = 'io.github.whilein'
+                    url = 'https://github.com/whilein'
+                }
+
+                issueManagement {
+                    system = 'GitHub'
+                    url = 'https://github.com/whilein/wredis/issues'
+                }
+
                 licenses {
                     license {
-                        name = "The Apache License, Version 2.0"
-                        url = "http://www.apache.org/licenses/LICENSE-2.0.txt"
+                        name = 'The Apache License, Version 2.0'
+                        url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
                     }
+                }
+
+                scm {
+                    url = 'https://github.com/whilein/wredis'
+                    connection = 'scm:https://github.com/whilein/wredis.git'
+                    developerConnection = 'scm:git://github.com/whilein/wredis.git'
                 }
 
                 developers {
@@ -119,6 +135,10 @@ tasks.withType(JavaCompile) {
 java {
     withJavadocJar()
     withSourcesJar()
+}
+
+signing {
+    sign publishing.publications
 }
 
 test {
