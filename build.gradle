@@ -1,0 +1,133 @@
+//file:noinspection GrUnresolvedAccess
+String getCommit() {
+    def stdout = new ByteArrayOutputStream()
+
+    exec {
+        commandLine "git", "rev-parse", "--short", "HEAD"
+        standardOutput = stdout
+    }
+
+    return stdout.toString().trim()
+}
+
+static boolean isNonStable(String version) {
+    def stableKeyword = ['RELEASE', 'FINAL', 'GA'].any { it -> version.toUpperCase().contains(it) }
+    def regex = /^[0-9,.v-]+(-r)?(-jre)?$/
+    return !stableKeyword && !(version ==~ regex)
+}
+
+plugins {
+    id "com.github.ben-manes.versions" version "0.42.0"
+
+    id "java"
+
+    id 'maven-publish'
+    id 'signing'
+}
+
+def releaseVersion = findProperty("github.tag") ?: getCommit()
+println("Release version: ${releaseVersion}")
+
+dependencyUpdates {
+    configure {
+        rejectVersionIf {
+            isNonStable(it.candidate.version)
+        }
+
+        checkForGradleUpdate = true
+    }
+}
+
+group "io.github.whilein"
+version releaseVersion
+
+apply from: new File(rootDir, "libs.gradle")
+
+repositories {
+    mavenCentral()
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = project.name
+                description = project.description
+
+                url = "https://github.com/whilein/wredis"
+
+                licenses {
+                    license {
+                        name = "The Apache License, Version 2.0"
+                        url = "http://www.apache.org/licenses/LICENSE-2.0.txt"
+                    }
+                }
+
+                developers {
+                    developer {
+                        id = "whilein"
+                        name = "whilein"
+                        email = "whilein.1@gmail.com"
+                    }
+                }
+            }
+
+            groupId = project.group
+            artifactId = project.name
+            version = project.version
+
+            from components.java
+        }
+    }
+
+    repositories {
+        mavenLocal()
+
+        // maven central
+
+        maven {
+            url = "https://s01.oss.sonatype.org/service/local/staging/deploy/maven2"
+
+            credentials {
+                username = findProperty('sonatype.user')
+                password = findProperty('sonatype.password')
+            }
+        }
+    }
+}
+
+dependencies {
+    compileOnly libs.lombok
+    annotationProcessor libs.lombok
+
+    testCompileOnly libs.lombok
+    testAnnotationProcessor libs.lombok
+
+    compileOnly libs.annotations
+    testCompileOnly libs.annotations
+
+    testImplementation libs.junit.api
+    testRuntimeOnly libs.junit.engine
+}
+
+tasks.withType(JavaCompile) {
+    options.encoding = "UTF-8"
+    targetCompatibility = JavaVersion.VERSION_11
+    sourceCompatibility = JavaVersion.VERSION_11
+}
+
+java {
+    withJavadocJar()
+    withSourcesJar()
+}
+
+test {
+    useJUnitPlatform()
+
+    testLogging {
+        showStandardStreams = true
+
+        exceptionFormat "short"
+        events("started", "skipped", "failed")
+    }
+}
