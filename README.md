@@ -36,9 +36,8 @@ public class Main {
                 .argument(password);
 
         redis.command("PING");
-        redis.flush();
 
-        RedisResponse response = redis.read();
+        RedisResponse response = redis.flushAndRead();
         response.skip(); // пропускаем ответ на AUTH
 
         boolean pong = "PONG".equals(response.nextString());
