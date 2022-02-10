@@ -29,17 +29,12 @@
 ```java
 public class Main {
     public static void main(final String[] args) {
-        Redis redis = NioRedis.create(new InetSocketAddress(host, port));
+        Redis redis = NioRedis.builder(new InetSocketAddress(host, port))
+                .auth(username, password)
+                .connectTimeout(1, TimeUnit.SECONDS)
+                .connect();
 
-        redis.command("AUTH", 2)
-                .argument(username)
-                .argument(password);
-
-        redis.command("PING");
-
-        RedisResponse response = redis.flushAndRead();
-        response.skip(); // пропускаем ответ на AUTH
-
+        RedisResponse response = redis.command("PING").flushAndRead();
         boolean pong = "PONG".equals(response.nextString());
     }
 }
