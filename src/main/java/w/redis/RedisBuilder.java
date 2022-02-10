@@ -42,28 +42,6 @@ public interface RedisBuilder {
     @NotNull RedisBuilder asciiWriter(@NotNull AsciiWriter asciiWriter);
 
     /**
-     * Сменить аллокатор буфера записи.
-     * <p>
-     * По умолчанию используется {@link ByteAllocator#heapBufferAllocator()}, но вы можете либо
-     * реализовать свой {@link ByteAllocator}, либо использовать {@link ByteAllocator#directBufferAllocator()}.
-     *
-     * @param byteAllocator новый аллокатор буфера записи
-     * @return {@code this}
-     */
-    @NotNull RedisBuilder writeBufferAllocator(@NotNull ByteAllocator byteAllocator);
-
-    /**
-     * Сменить аллокатор буфера чтения.
-     * <p>
-     * По умолчанию используется {@link ByteAllocator#heapBufferAllocator()}, но вы можете либо
-     * реализовать свой {@link ByteAllocator}, либо использовать {@link ByteAllocator#directBufferAllocator()}.
-     *
-     * @param byteAllocator новый аллокатор буфера чтения
-     * @return {@code this}
-     */
-    @NotNull RedisBuilder readBufferAllocator(@NotNull ByteAllocator byteAllocator);
-
-    /**
      * Сменить изначальный размер буфера записи
      * <p>
      * По умолчанию изначальный размер равен {@code 1024}.

@@ -23,9 +23,7 @@ import lombok.experimental.NonFinal;
 import lombok.val;
 import org.jetbrains.annotations.NotNull;
 import w.redis.AsciiWriter;
-import w.redis.ByteAllocator;
 import w.redis.Redis;
-import w.redis.RedisAuthException;
 import w.redis.RedisBuilder;
 
 import java.net.InetSocketAddress;
@@ -48,12 +46,6 @@ public final class NioRedisBuilder implements RedisBuilder {
 
     @NonFinal
     AsciiWriter asciiWriter;
-
-    @NonFinal
-    ByteAllocator writeAllocator;
-
-    @NonFinal
-    ByteAllocator readAllocator;
 
     @NonFinal
     Integer writeCapacity;
@@ -98,20 +90,6 @@ public final class NioRedisBuilder implements RedisBuilder {
     }
 
     @Override
-    public @NotNull RedisBuilder writeBufferAllocator(final @NotNull ByteAllocator byteAllocator) {
-        this.writeAllocator = byteAllocator;
-
-        return this;
-    }
-
-    @Override
-    public @NotNull RedisBuilder readBufferAllocator(final @NotNull ByteAllocator byteAllocator) {
-        this.readAllocator = byteAllocator;
-
-        return this;
-    }
-
-    @Override
     public @NotNull RedisBuilder writeBufferCapacity(final int capacity) {
         this.writeCapacity = capacity;
 
@@ -144,8 +122,6 @@ public final class NioRedisBuilder implements RedisBuilder {
         val redis = NioRedis.create(
                 address,
                 asciiWriter == null ? AsciiWriter.defaultAsciiWriter() : asciiWriter,
-                writeAllocator == null ? ByteAllocator.heapBufferAllocator() : writeAllocator,
-                readAllocator == null ? ByteAllocator.heapBufferAllocator() : readAllocator,
                 writeCapacity == null ? 1024 : writeCapacity,
                 readCapacity == null ? 1024 : readCapacity,
                 timeout,
@@ -156,18 +132,9 @@ public final class NioRedisBuilder implements RedisBuilder {
 
         if (password != null) {
             if (username != null) {
-                redis.command("AUTH", 2)
-                        .argument(username)
-                        .argument(password);
+                redis.auth(username, password);
             } else {
-                redis.command("AUTH", 1)
-                        .argument(password);
-            }
-
-            val response = redis.flushAndRead();
-
-            if (response.isError()) {
-                throw new RedisAuthException(response.nextString());
+                redis.auth(password);
             }
         }
 

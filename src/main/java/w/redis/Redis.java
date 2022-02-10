@@ -29,6 +29,10 @@ public interface Redis extends AutoCloseable {
 
     void connect() throws RedisSocketException;
 
+    void auth(@NotNull String username, @NotNull String password) throws RedisAuthException;
+
+    void auth(@NotNull String password) throws RedisAuthException;
+
     @NotNull RedisResponse flushAndRead();
 
     @NotNull RedisResponse read();

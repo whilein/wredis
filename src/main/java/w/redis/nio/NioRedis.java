@@ -25,8 +25,8 @@ import lombok.experimental.NonFinal;
 import lombok.val;
 import org.jetbrains.annotations.NotNull;
 import w.redis.AsciiWriter;
-import w.redis.ByteAllocator;
 import w.redis.Redis;
+import w.redis.RedisAuthException;
 import w.redis.RedisBuilder;
 import w.redis.RedisResponse;
 import w.redis.RedisSocketException;
@@ -71,8 +71,6 @@ public final class NioRedis implements Redis {
     public static @NotNull Redis create(
             final @NotNull InetSocketAddress address,
             final @NotNull AsciiWriter asciiWriter,
-            final @NotNull ByteAllocator writeAllocator,
-            final @NotNull ByteAllocator readAllocator,
             final int writeCapacity,
             final int readCapacity,
             final long timeout,
@@ -80,8 +78,8 @@ public final class NioRedis implements Redis {
     ) {
         return new NioRedis(
                 address,
-                new DynWriteBuffer(writeAllocator.allocate(writeCapacity), writeAllocator, asciiWriter),
-                new DynReadBuffer(readAllocator.allocate(readCapacity), readAllocator),
+                new DynWriteBuffer(ByteBuffer.allocate(writeCapacity), asciiWriter),
+                new DynReadBuffer(ByteBuffer.allocate(readCapacity)),
                 NioRedisResponse.create(),
                 timeout,
                 tcpNoDelay
@@ -111,6 +109,31 @@ public final class NioRedis implements Redis {
         }
 
         return null;
+    }
+
+    private void _checkAuth() {
+        val response = flushAndRead();
+
+        if (response.isError()) {
+            throw new RedisAuthException(response.nextString());
+        }
+    }
+
+    @Override
+    public void auth(final @NotNull String username, final @NotNull String password) throws RedisAuthException {
+        command("AUTH", 2)
+                .argument(username)
+                .argument(password);
+
+        _checkAuth();
+    }
+
+    @Override
+    public void auth(final @NotNull String password) throws RedisAuthException {
+        command("AUTH", 1)
+                .argument(password);
+
+        _checkAuth();
     }
 
     @Override
@@ -257,14 +280,13 @@ public final class NioRedis implements Redis {
     @AllArgsConstructor
     private static abstract class DynBuffer {
         ByteBuffer buffer;
-        ByteAllocator byteAllocator;
 
         public ByteBuffer resize() {
             return resize(buffer.capacity() * 2);
         }
 
         public ByteBuffer resize(final int to) {
-            val newBuffer = byteAllocator.allocate(to);
+            val newBuffer = ByteBuffer.allocate(to);
             buffer.flip();
             newBuffer.put(buffer);
 
@@ -275,8 +297,8 @@ public final class NioRedis implements Redis {
 
     private static final class DynReadBuffer extends DynBuffer {
 
-        public DynReadBuffer(final ByteBuffer buffer, final ByteAllocator byteAllocator) {
-            super(buffer, byteAllocator);
+        public DynReadBuffer(final ByteBuffer buffer) {
+            super(buffer);
         }
 
     }
@@ -286,8 +308,8 @@ public final class NioRedis implements Redis {
 
         AsciiWriter asciiWriter;
 
-        public DynWriteBuffer(final ByteBuffer buffer, final ByteAllocator byteAllocator, final AsciiWriter asciiWriter) {
-            super(buffer, byteAllocator);
+        public DynWriteBuffer(final ByteBuffer buffer, final AsciiWriter asciiWriter) {
+            super(buffer);
 
             this.asciiWriter = asciiWriter;
         }
