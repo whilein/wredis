@@ -23,6 +23,7 @@ import w.redis.nio.NioRedis;
 
 import java.net.InetSocketAddress;
 import java.util.HashSet;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -36,9 +37,19 @@ final class NioRedisTests {
 
     @BeforeAll
     static void setup() {
-        redis = NioRedis.create(new InetSocketAddress("127.0.0.1", 6379));
+        boolean connected;
 
-        assumeTrue(redis.isAvailable());
+        try {
+            redis = NioRedis.builder(new InetSocketAddress("localhost", 6379))
+                    .connectTimeout(1, TimeUnit.SECONDS)
+                    .connect();
+
+            connected = true;
+        } catch (final Exception e) {
+            connected = false;
+        }
+
+        assumeTrue(connected);
     }
 
     @Test
@@ -62,11 +73,15 @@ final class NioRedisTests {
                 .argument("COUNTER")
                 .argument(-10L)
 
+                .command("DEL", 1)
+                .argument("COUNTER")
+
                 .flushAndRead();
 
         assertEquals("OK", response.nextString()); // SET
         assertEquals(5, response.nextLong()); // DECRBY
         assertEquals(15, response.nextLong()); // DECRBY
+        assertEquals(1, response.nextInt()); // DEL
     }
 
     @Test
@@ -83,11 +98,16 @@ final class NioRedisTests {
                 .command("INCRBY", 2)
                 .argument("COUNTER")
                 .argument(-10)
+
+                .command("DEL", 1)
+                .argument("COUNTER")
+
                 .flushAndRead();
 
         assertEquals("OK", response.nextString()); // SET
         assertEquals(15, response.nextInt()); // INCRBY
         assertEquals(5, response.nextInt()); // INCRBY
+        assertEquals(1, response.nextInt()); // DEL
     }
 
     @Test

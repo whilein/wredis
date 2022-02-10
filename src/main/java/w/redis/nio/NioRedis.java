@@ -25,12 +25,14 @@ import lombok.experimental.NonFinal;
 import lombok.val;
 import org.jetbrains.annotations.NotNull;
 import w.redis.AsciiWriter;
+import w.redis.ByteAllocator;
 import w.redis.Redis;
+import w.redis.RedisBuilder;
 import w.redis.RedisResponse;
+import w.redis.RedisSocketException;
 import w.redis.util.NumberUtils;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
@@ -53,50 +55,90 @@ public final class NioRedis implements Redis {
 
     DynReadBuffer read;
 
+    RedisResponse response;
+
+    long timeout;
+
+    boolean tcpNoDelay;
+
     @NonFinal
     NioRedisSession session;
 
-    RedisResponse response;
-
-    @Override
-    public boolean isAvailable() {
-        try {
-            ensureConnection();
-
-            return session != null && session.isConnected();
-        } catch (final IOException e) {
-            return false;
-        }
+    public static @NotNull RedisBuilder builder(final @NotNull InetSocketAddress address) {
+        return NioRedisBuilder.create(address);
     }
 
-    @Override
-    public void setAsciiWriter(final @NotNull AsciiWriter asciiWriter) {
-        write.asciiWriter = asciiWriter;
-    }
-
-    public static @NotNull Redis create(final @NotNull InetAddress address, final int port) {
-        return create(new InetSocketAddress(address, port));
-    }
-
-    public static @NotNull Redis create(final @NotNull InetSocketAddress address) {
+    public static @NotNull Redis create(
+            final @NotNull InetSocketAddress address,
+            final @NotNull AsciiWriter asciiWriter,
+            final @NotNull ByteAllocator writeAllocator,
+            final @NotNull ByteAllocator readAllocator,
+            final int writeCapacity,
+            final int readCapacity,
+            final long timeout,
+            final boolean tcpNoDelay
+    ) {
         return new NioRedis(
                 address,
-                new DynWriteBuffer(ByteBuffer.allocate(8192), AsciiWriter.defaultAsciiWriter()),
-                new DynReadBuffer(ByteBuffer.allocate(8192)),
-                NioRedisResponse.create()
+                new DynWriteBuffer(writeAllocator.allocate(writeCapacity), writeAllocator, asciiWriter),
+                new DynReadBuffer(readAllocator.allocate(readCapacity), readAllocator),
+                NioRedisResponse.create(),
+                timeout,
+                tcpNoDelay
         );
     }
 
-    private void ensureConnection() throws IOException {
+    private static void awaitReadable(final Selector selector) throws IOException {
+        selector.select(0);
+
+        val readyKeys = selector.selectedKeys();
+        readyKeys.removeIf(SelectionKey::isReadable);
+    }
+
+    private static SelectionKey awaitConnectable(final Selector selector, final long timeout) throws IOException {
+        selector.select(timeout);
+
+        val readyKeys = selector.selectedKeys().iterator();
+
+        while (readyKeys.hasNext()) {
+            val key = readyKeys.next();
+
+            if (key.isConnectable()) {
+                readyKeys.remove();
+
+                return key;
+            }
+        }
+
+        return null;
+    }
+
+    @Override
+    public void connect() throws RedisSocketException {
         if (session == null || !session.isConnected()) {
-            val channel = SocketChannel.open(address);
-            channel.setOption(StandardSocketOptions.TCP_NODELAY, Boolean.TRUE);
-            channel.configureBlocking(false);
+            try {
+                val channel = SocketChannel.open();
+                channel.setOption(StandardSocketOptions.TCP_NODELAY, tcpNoDelay);
+                channel.configureBlocking(false);
 
-            val selector = Selector.open();
-            channel.register(selector, SelectionKey.OP_READ, null);
+                val selector = Selector.open();
+                channel.register(selector, SelectionKey.OP_READ, null);
+                channel.register(selector, SelectionKey.OP_CONNECT, null);
 
-            session = new NioRedisSession(channel, selector);
+                channel.connect(address);
+
+                val key = awaitConnectable(selector, timeout);
+
+                if (key != null && channel.finishConnect()) {
+                    key.interestOps(SelectionKey.OP_READ);
+
+                    session = new NioRedisSession(channel, selector);
+                } else {
+                    throw new RedisSocketException("Can't connect to " + address);
+                }
+            } catch (final IOException e) {
+                throw new RedisSocketException("Can't connect to " + address, e);
+            }
         }
     }
 
@@ -147,11 +189,7 @@ public final class NioRedis implements Redis {
         return this;
     }
 
-    @Override
-    @SneakyThrows
-    public void flush() {
-        ensureConnection();
-
+    private void _flush() throws IOException {
         val buffer = write.buffer;
         buffer.flip();
 
@@ -161,29 +199,28 @@ public final class NioRedis implements Redis {
         buffer.clear();
     }
 
-    private void awaitReadable() throws IOException {
-        val selector = session.selector;
-        selector.select(0);
-
-        val readyKeys = selector.selectedKeys();
-        readyKeys.removeIf(SelectionKey::isReadable);
-    }
-
     @Override
-    public @NotNull RedisResponse flushAndRead() {
-        flush();
-        return read();
+    @SneakyThrows
+    public void flush() {
+        connect();
+
+        _flush();
     }
 
     @Override
     @SneakyThrows
-    public @NotNull RedisResponse read() {
-        ensureConnection();
+    public @NotNull RedisResponse flushAndRead() {
+        connect();
 
+        _flush();
+        return _read();
+    }
+
+    private RedisResponse _read() throws IOException {
         ByteBuffer buffer = read.buffer;
         buffer.clear();
 
-        awaitReadable();
+        awaitReadable(session.selector);
 
         val channel = session.channel;
 
@@ -201,6 +238,14 @@ public final class NioRedis implements Redis {
     }
 
     @Override
+    @SneakyThrows
+    public @NotNull RedisResponse read() {
+        connect();
+
+        return _read();
+    }
+
+    @Override
     public void close() throws Exception {
         if (session != null) {
             session.channel.close();
@@ -212,13 +257,14 @@ public final class NioRedis implements Redis {
     @AllArgsConstructor
     private static abstract class DynBuffer {
         ByteBuffer buffer;
+        ByteAllocator byteAllocator;
 
         public ByteBuffer resize() {
             return resize(buffer.capacity() * 2);
         }
 
         public ByteBuffer resize(final int to) {
-            val newBuffer = ByteBuffer.allocate(to);
+            val newBuffer = byteAllocator.allocate(to);
             buffer.flip();
             newBuffer.put(buffer);
 
@@ -229,18 +275,19 @@ public final class NioRedis implements Redis {
 
     private static final class DynReadBuffer extends DynBuffer {
 
-        public DynReadBuffer(final ByteBuffer buffer) {
-            super(buffer);
+        public DynReadBuffer(final ByteBuffer buffer, final ByteAllocator byteAllocator) {
+            super(buffer, byteAllocator);
         }
 
     }
 
+    @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
     private static final class DynWriteBuffer extends DynBuffer {
 
         AsciiWriter asciiWriter;
 
-        public DynWriteBuffer(final ByteBuffer buffer, final AsciiWriter asciiWriter) {
-            super(buffer);
+        public DynWriteBuffer(final ByteBuffer buffer, final ByteAllocator byteAllocator, final AsciiWriter asciiWriter) {
+            super(buffer, byteAllocator);
 
             this.asciiWriter = asciiWriter;
         }
@@ -253,7 +300,6 @@ public final class NioRedis implements Redis {
                 resize(Math.min(requiredCapacity, currentCapacity * 2));
             }
         }
-
 
         public void writeCrlf() {
             buffer.put((byte) '\r').put((byte) '\n');

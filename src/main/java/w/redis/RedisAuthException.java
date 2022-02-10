@@ -16,35 +16,15 @@
 
 package w.redis;
 
-import org.jetbrains.annotations.NotNull;
-
-import java.nio.charset.Charset;
-
 /**
  * @author whilein
  */
-public interface Redis extends AutoCloseable {
+public final class RedisAuthException extends RedisException {
+    public RedisAuthException(final String message, final Throwable cause) {
+        super(message, cause);
+    }
 
-    void flush();
-
-    void connect() throws RedisSocketException;
-
-    @NotNull RedisResponse flushAndRead();
-
-    @NotNull RedisResponse read();
-
-    @NotNull Redis command(@NotNull String name, int arguments);
-
-    @NotNull Redis argument(int number);
-
-    @NotNull Redis argument(long number);
-
-    @NotNull Redis argument(@NotNull String text, @NotNull Charset charset);
-
-    @NotNull Redis argument(@NotNull String text);
-
-    @NotNull Redis argument(byte @NotNull [] bytes);
-
-    @NotNull Redis command(@NotNull String name);
-
+    public RedisAuthException(final String message) {
+        super(message);
+    }
 }
