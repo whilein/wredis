@@ -27,7 +27,6 @@ import w.redis.RedisResponse;
 import java.lang.reflect.Modifier;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
-import java.util.function.IntConsumer;
 
 /**
  * @author whilein
@@ -169,32 +168,6 @@ public final class NioRedisResponse implements RedisResponse {
         } finally {
             resetState();
         }
-    }
-
-    private boolean readNumber(final IntConsumer digitConsumer) {
-        byte prev = 0, value;
-
-        boolean negative = false;
-
-        while (true) {
-            value = buffer.get();
-
-            if (prev == 0 && value == '-') {
-                negative = true;
-            } else if (value == '\n' && prev == '\r') {
-                break;
-            }
-
-            prev = value;
-
-            val digit = digit((char) value);
-
-            if (digit != -1) {
-                digitConsumer.accept(digit);
-            }
-        }
-
-        return negative;
     }
 
     private long readLong() {
