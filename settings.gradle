@@ -1,5 +1,7 @@
 rootProject.name = 'wredis'
 
 include ':wredis-core'
+include ':wredis-nio-impl'
 
 project(":wredis-core").projectDir = new File(rootDir, "core")
+project(":wredis-nio-impl").projectDir = new File(rootDir, "nio-impl")

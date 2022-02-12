@@ -24,6 +24,7 @@ import lombok.experimental.FieldDefaults;
 import lombok.experimental.NonFinal;
 import lombok.val;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import w.redis.AsciiWriter;
 import w.redis.Redis;
 import w.redis.RedisAuthException;
@@ -39,7 +40,6 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
 /**
@@ -50,6 +50,9 @@ import java.nio.charset.StandardCharsets;
 public final class NioRedis implements Redis {
 
     InetSocketAddress address;
+
+    String username;
+    String password;
 
     DynWriteBuffer write;
 
@@ -70,6 +73,8 @@ public final class NioRedis implements Redis {
 
     public static @NotNull Redis create(
             final @NotNull InetSocketAddress address,
+            final @Nullable String username,
+            final @Nullable String password,
             final @NotNull AsciiWriter asciiWriter,
             final int writeCapacity,
             final int readCapacity,
@@ -78,6 +83,8 @@ public final class NioRedis implements Redis {
     ) {
         return new NioRedis(
                 address,
+                username,
+                password,
                 new DynWriteBuffer(ByteBuffer.allocate(writeCapacity), asciiWriter),
                 new DynReadBuffer(ByteBuffer.allocate(readCapacity)),
                 NioRedisResponse.create(),
@@ -111,31 +118,6 @@ public final class NioRedis implements Redis {
         return null;
     }
 
-    private void _checkAuth() {
-        val response = flushAndRead();
-
-        if (response.isError()) {
-            throw new RedisAuthException(response.nextString());
-        }
-    }
-
-    @Override
-    public void auth(final @NotNull String username, final @NotNull String password) throws RedisAuthException {
-        command("AUTH", 2)
-                .argument(username)
-                .argument(password);
-
-        _checkAuth();
-    }
-
-    @Override
-    public void auth(final @NotNull String password) throws RedisAuthException {
-        command("AUTH", 1)
-                .argument(password);
-
-        _checkAuth();
-    }
-
     @Override
     public void connect() throws RedisSocketException {
         if (session == null || !session.isConnected()) {
@@ -156,6 +138,25 @@ public final class NioRedis implements Redis {
                     key.interestOps(SelectionKey.OP_READ);
 
                     session = new NioRedisSession(channel, selector);
+
+                    if (password != null) {
+                        if (username != null) {
+                            writeCommand("AUTH", 2)
+                                    .writeUTF(username)
+                                    .writeUTF(password);
+                        } else {
+                            writeCommand("AUTH", 1)
+                                    .writeUTF(password);
+                        }
+
+                        val response = flushAndRead();
+
+                        if (response.isError()) {
+                            session = null;
+
+                            throw new RedisAuthException(response.nextString());
+                        }
+                    }
                 } else {
                     throw new RedisSocketException("Can't connect to " + address);
                 }
@@ -166,48 +167,50 @@ public final class NioRedis implements Redis {
     }
 
     @Override
-    public @NotNull Redis command(final @NotNull String name, final int arguments) {
-        write.writeCommand(name, arguments);
-
-        return this;
-    }
-
-    @Override
-    public @NotNull Redis argument(final int number) {
+    public @NotNull Redis writeInt(final int number) {
         write.writeNumber(number);
 
         return this;
     }
 
     @Override
-    public @NotNull Redis argument(final long number) {
+    public @NotNull Redis writeLong(final long number) {
         write.writeNumber(number);
 
         return this;
     }
 
     @Override
-    public @NotNull Redis argument(final @NotNull String text) {
-        return argument(text, StandardCharsets.UTF_8);
-    }
-
-    @Override
-    public @NotNull Redis argument(final @NotNull String text, final @NotNull Charset charset) {
-        write.writeText(text, charset);
+    public @NotNull Redis writeUTF(final @NotNull String text) {
+        write.writeTextUTF(text);
 
         return this;
     }
 
     @Override
-    public @NotNull Redis argument(final byte @NotNull [] bytes) {
+    public @NotNull Redis writeAscii(final @NotNull String text) {
+        write.writeTextAscii(text);
+
+        return this;
+    }
+
+    @Override
+    public @NotNull Redis writeBytes(final byte @NotNull [] bytes) {
         write.writeBytes(bytes);
 
         return this;
     }
 
     @Override
-    public @NotNull Redis command(final @NotNull String name) {
+    public @NotNull Redis writeCommand(final @NotNull String name) {
         write.writeNoArgCommand(name);
+
+        return this;
+    }
+
+    @Override
+    public @NotNull Redis writeCommand(final @NotNull String name, final int arguments) {
+        write.writeCommand(name, arguments);
 
         return this;
     }
@@ -462,27 +465,34 @@ public final class NioRedis implements Redis {
             writeCrlf();
         }
 
-        public void writeText(final String text, final Charset cs) {
+        public void writeTextAscii(final String text) {
             if (text.length() == 0) {
                 writeEmptyString();
                 return;
             }
 
-            if (cs == StandardCharsets.US_ASCII) {
-                val textLength = text.length();
-                writeLength('$', textLength);
+            val textLength = text.length();
+            writeLength('$', textLength);
 
-                ensure(textLength + 2);
-                writeAscii(text);
-            } else {
-                val bytes = text.getBytes(cs);
+            ensure(textLength + 2);
+            writeAscii(text);
 
-                val textLength = bytes.length;
-                writeLength('$', textLength);
+            writeCrlf();
+        }
 
-                ensure(textLength + 2);
-                buffer.put(bytes);
+        public void writeTextUTF(final String text) {
+            if (text.length() == 0) {
+                writeEmptyString();
+                return;
             }
+
+            val bytes = text.getBytes(StandardCharsets.UTF_8);
+
+            val textLength = bytes.length;
+            writeLength('$', textLength);
+
+            ensure(textLength + 2);
+            buffer.put(bytes);
 
             writeCrlf();
         }

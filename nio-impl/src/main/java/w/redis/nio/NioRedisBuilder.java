@@ -121,6 +121,8 @@ public final class NioRedisBuilder implements RedisBuilder {
     public @NotNull Redis connect() {
         val redis = NioRedis.create(
                 address,
+                username,
+                password,
                 asciiWriter == null ? AsciiWriter.defaultAsciiWriter() : asciiWriter,
                 writeCapacity == null ? 1024 : writeCapacity,
                 readCapacity == null ? 1024 : readCapacity,
@@ -129,14 +131,6 @@ public final class NioRedisBuilder implements RedisBuilder {
         );
 
         redis.connect();
-
-        if (password != null) {
-            if (username != null) {
-                redis.auth(username, password);
-            } else {
-                redis.auth(password);
-            }
-        }
 
         return redis;
     }

@@ -54,27 +54,27 @@ final class NioRedisTests {
 
     @Test
     void readString() {
-        val response = redis.command("PING").flushAndRead();
+        val response = redis.writeCommand("PING").flushAndRead();
         assertEquals("PONG", response.nextString());
     }
 
     @Test
     void longArgument() {
         val response = redis
-                .command("SET", 2)
-                .argument("COUNTER")
-                .argument("15")
+                .writeCommand("SET", 2)
+                .writeAscii("COUNTER")
+                .writeAscii("15")
 
-                .command("DECRBY", 2)
-                .argument("COUNTER")
-                .argument(10L)
+                .writeCommand("DECRBY", 2)
+                .writeAscii("COUNTER")
+                .writeLong(10L)
 
-                .command("DECRBY", 2)
-                .argument("COUNTER")
-                .argument(-10L)
+                .writeCommand("DECRBY", 2)
+                .writeAscii("COUNTER")
+                .writeLong(-10L)
 
-                .command("DEL", 1)
-                .argument("COUNTER")
+                .writeCommand("DEL", 1)
+                .writeAscii("COUNTER")
 
                 .flushAndRead();
 
@@ -87,20 +87,20 @@ final class NioRedisTests {
     @Test
     void intArgument() {
         val response = redis
-                .command("SET", 2)
-                .argument("COUNTER")
-                .argument("5")
+                .writeCommand("SET", 2)
+                .writeAscii("COUNTER")
+                .writeAscii("5")
 
-                .command("INCRBY", 2)
-                .argument("COUNTER")
-                .argument(10)
+                .writeCommand("INCRBY", 2)
+                .writeAscii("COUNTER")
+                .writeInt(10)
 
-                .command("INCRBY", 2)
-                .argument("COUNTER")
-                .argument(-10)
+                .writeCommand("INCRBY", 2)
+                .writeAscii("COUNTER")
+                .writeInt(-10)
 
-                .command("DEL", 1)
-                .argument("COUNTER")
+                .writeCommand("DEL", 1)
+                .writeAscii("COUNTER")
 
                 .flushAndRead();
 
@@ -113,8 +113,8 @@ final class NioRedisTests {
     @Test
     void readArray() {
         redis
-                .command("DEL", 1)
-                .argument("VALUES");
+                .writeCommand("DEL", 1)
+                .writeAscii("VALUES");
 
         val values = new HashSet<String>();
 
@@ -123,14 +123,14 @@ final class NioRedisTests {
             values.add(value);
 
             redis
-                    .command("SADD", 2)
-                    .argument("VALUES")
-                    .argument(value);
+                    .writeCommand("SADD", 2)
+                    .writeAscii("VALUES")
+                    .writeAscii(value);
         }
 
         redis
-                .command("SMEMBERS", 1)
-                .argument("VALUES");
+                .writeCommand("SMEMBERS", 1)
+                .writeAscii("VALUES");
 
         val response = redis.flushAndRead();
         response.skip(11); // del + 10 sadd
@@ -148,10 +148,18 @@ final class NioRedisTests {
     @Test
     void readNumber() {
         val response = redis
-                .command("DEL", 1).argument("VALUES")
-                .command("SCARD", 1).argument("VALUES")
-                .command("SADD", 2).argument("VALUES").argument("ELEMENT")
-                .command("SCARD", 1).argument("VALUES")
+                .writeCommand("DEL", 1)
+                .writeAscii("VALUES")
+
+                .writeCommand("SCARD", 1)
+                .writeAscii("VALUES")
+
+                .writeCommand("SADD", 2)
+                .writeAscii("VALUES")
+                .writeAscii("ELEMENT")
+
+                .writeCommand("SCARD", 1)
+                .writeAscii("VALUES")
                 .flushAndRead();
 
         response.skip(); // del

@@ -18,8 +18,6 @@ package w.redis;
 
 import org.jetbrains.annotations.NotNull;
 
-import java.nio.charset.Charset;
-
 /**
  * @author whilein
  */
@@ -27,28 +25,24 @@ public interface Redis extends AutoCloseable {
 
     void flush();
 
-    void connect() throws RedisSocketException;
-
-    void auth(@NotNull String username, @NotNull String password) throws RedisAuthException;
-
-    void auth(@NotNull String password) throws RedisAuthException;
+    void connect() throws RedisSocketException, RedisAuthException;
 
     @NotNull RedisResponse flushAndRead();
 
     @NotNull RedisResponse read();
 
-    @NotNull Redis command(@NotNull String name, int arguments);
+    @NotNull Redis writeInt(int number);
 
-    @NotNull Redis argument(int number);
+    @NotNull Redis writeLong(long number);
 
-    @NotNull Redis argument(long number);
+    @NotNull Redis writeUTF(@NotNull String text);
 
-    @NotNull Redis argument(@NotNull String text, @NotNull Charset charset);
+    @NotNull Redis writeAscii(@NotNull String text);
 
-    @NotNull Redis argument(@NotNull String text);
+    @NotNull Redis writeBytes(byte @NotNull [] bytes);
 
-    @NotNull Redis argument(byte @NotNull [] bytes);
+    @NotNull Redis writeCommand(@NotNull String name);
 
-    @NotNull Redis command(@NotNull String name);
+    @NotNull Redis writeCommand(@NotNull String name, int arguments);
 
 }
