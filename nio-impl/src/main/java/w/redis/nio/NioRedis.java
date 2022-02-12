@@ -18,17 +18,17 @@ package w.redis.nio;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.NonFinal;
 import lombok.val;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 import w.redis.AsciiWriter;
 import w.redis.Redis;
 import w.redis.RedisAuthException;
-import w.redis.RedisBuilder;
+import w.redis.RedisConfig;
 import w.redis.RedisResponse;
 import w.redis.RedisSocketException;
 import w.redis.util.NumberUtils;
@@ -64,32 +64,25 @@ public final class NioRedis implements Redis {
 
     boolean tcpNoDelay;
 
+    @Getter
+    @NonFinal
+    boolean closed;
+
     @NonFinal
     NioRedisSession session;
 
-    public static @NotNull RedisBuilder builder(final @NotNull InetSocketAddress address) {
-        return NioRedisBuilder.create(address);
-    }
-
     public static @NotNull Redis create(
-            final @NotNull InetSocketAddress address,
-            final @Nullable String username,
-            final @Nullable String password,
-            final @NotNull AsciiWriter asciiWriter,
-            final int writeCapacity,
-            final int readCapacity,
-            final long timeout,
-            final boolean tcpNoDelay
+            final @NotNull RedisConfig config
     ) {
         return new NioRedis(
-                address,
-                username,
-                password,
-                new DynWriteBuffer(ByteBuffer.allocate(writeCapacity), asciiWriter),
-                new DynReadBuffer(ByteBuffer.allocate(readCapacity)),
+                config.getAddress(),
+                config.getUsername(),
+                config.getPassword(),
+                new DynWriteBuffer(ByteBuffer.allocate(config.getWriteBufferCapacity()), config.getAsciiWriter()),
+                new DynReadBuffer(ByteBuffer.allocate(config.getReadBufferCapacity())),
                 NioRedisResponse.create(),
-                timeout,
-                tcpNoDelay
+                config.getConnectTimeoutMillis(),
+                config.isTcpNoDelay()
         );
     }
 
@@ -119,8 +112,12 @@ public final class NioRedis implements Redis {
     }
 
     @Override
-    public void connect() throws RedisSocketException {
+    public @NotNull Redis connect() throws RedisSocketException {
         if (session == null || !session.isConnected()) {
+            if (closed) {
+                throw new IllegalStateException("Redis instance was closed");
+            }
+
             try {
                 val channel = SocketChannel.open();
                 channel.setOption(StandardSocketOptions.TCP_NODELAY, tcpNoDelay);
@@ -164,6 +161,8 @@ public final class NioRedis implements Redis {
                 throw new RedisSocketException("Can't connect to " + address, e);
             }
         }
+
+        return this;
     }
 
     @Override
@@ -274,6 +273,8 @@ public final class NioRedis implements Redis {
     @Override
     public void close() throws Exception {
         if (session != null) {
+            closed = true;
+
             session.channel.close();
             session.selector.close();
             session = null;

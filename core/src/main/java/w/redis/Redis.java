@@ -23,9 +23,11 @@ import org.jetbrains.annotations.NotNull;
  */
 public interface Redis extends AutoCloseable {
 
+    boolean isClosed();
+
     void flush();
 
-    void connect() throws RedisSocketException, RedisAuthException;
+    @NotNull Redis connect() throws RedisSocketException, RedisAuthException;
 
     @NotNull RedisResponse flushAndRead();
 

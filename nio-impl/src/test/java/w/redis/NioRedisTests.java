@@ -40,8 +40,9 @@ final class NioRedisTests {
         boolean connected;
 
         try {
-            redis = NioRedis.builder(new InetSocketAddress("localhost", 6379))
-                    .connectTimeout(1, TimeUnit.SECONDS)
+            redis = NioRedis.create(RedisConfig.builder(new InetSocketAddress("localhost", 6379))
+                            .connectTimeout(1, TimeUnit.SECONDS)
+                            .build())
                     .connect();
 
             connected = true;

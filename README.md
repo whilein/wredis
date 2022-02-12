@@ -29,9 +29,10 @@
 ```java
 public class Main {
     public static void main(final String[] args) {
-        Redis redis = NioRedis.builder(new InetSocketAddress(host, port))
-                .auth(username, password)
-                .connectTimeout(1, TimeUnit.SECONDS)
+        Redis redis = NioRedis.create(RedisConfig.builder(new InetSocketAddress(host, port))
+                        .auth(username, password)
+                        .connectTimeout(1, TimeUnit.SECONDS)
+                        .build())
                 .connect();
 
         RedisResponse response = redis.command("PING").flushAndRead();
