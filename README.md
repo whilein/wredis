@@ -19,8 +19,8 @@
     <img src="https://img.shields.io/github/issues-pr/whilein/wredis">
   </a>
 
-  <a href="https://search.maven.org/artifact/io.github.whilein/wredis">
-    <img src="https://img.shields.io/maven-central/v/io.github.whilein/wredis">
+  <a href="https://search.maven.org/artifact/io.github.whilein/wredis-api">
+    <img src="https://img.shields.io/maven-central/v/io.github.whilein/wredis-api">
   </a>
 </div>
 
@@ -44,8 +44,8 @@ public class Main {
 ## Добавить в свой проект
 
 <div>
-  <a href="https://search.maven.org/artifact/io.github.whilein/wredis">
-    <img src="https://img.shields.io/maven-central/v/io.github.whilein/wredis">
+  <a href="https://search.maven.org/artifact/io.github.whilein/wredis-api">
+    <img src="https://img.shields.io/maven-central/v/io.github.whilein/wredis-api">
   </a>
 </div>
 
