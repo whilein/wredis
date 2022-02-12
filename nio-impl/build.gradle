@@ -1,3 +1,5 @@
+description "Nio implementation of wredis-api"
+
 dependencies {
     implementation project(":wredis-api")
 }
