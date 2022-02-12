@@ -51,8 +51,8 @@ subprojects {
         publications {
             mavenJava(MavenPublication) {
                 pom {
-                    name = project.name
-                    description = project.description
+                    name = it.name
+                    description = it.description
 
                     url = "https://github.com/whilein/wredis"
 
