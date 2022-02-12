@@ -47,12 +47,15 @@ subprojects {
         mavenCentral()
     }
 
+    def projectName = it.name
+    def projectDescription = it.description
+
     publishing {
         publications {
             mavenJava(MavenPublication) {
                 pom {
-                    name = it.name
-                    description = it.description
+                    name = projectName
+                    description = projectDescription
 
                     url = "https://github.com/whilein/wredis"
 
@@ -89,7 +92,7 @@ subprojects {
                 }
 
                 groupId = project.group
-                artifactId = project.name
+                artifactId = projectName
                 version = project.version
 
                 from components.java
