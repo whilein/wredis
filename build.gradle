@@ -140,12 +140,6 @@ subprojects {
     }
 
     signing {
-        useInMemoryPgpKeys(
-                findProperty('signing.keyId'),
-                new File(rootDir, "secret.gpg").getAbsolutePath(),
-                findProperty('signing.password')
-        )
-
         sign publishing.publications
     }
 
