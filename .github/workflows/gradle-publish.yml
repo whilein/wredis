@@ -21,9 +21,9 @@ jobs:
       - name: Prepare to publish
         run: |
           echo "${{secrets.GPG_KEY_CONTENTS}}" | base64 -d > publish_key.gpg
-          gpg --quiet --batch --yes --decrypt --passphrase="${{secrets.SECRET_PASSPHRASE}}" --output /root/secret.gpg /root/publish_key.gpg
+          gpg --quiet --batch --yes --decrypt --passphrase="${{secrets.SECRET_PASSPHRASE}}" --output secret.gpg ublish_key.gpg
       - name: Retrieve github tag
         id: github_tag
         run: echo ::set-output name=RESULT::$(echo $GITHUB_REF | cut -d / -f 3)
       - name: Publish with Gradle
-        run: ./gradlew test publishMavenJavaPublicationToMavenRepository --no-parallel --no-daemon --build-cache -Pgithub.tag=${{ steps.github_tag.outputs.RESULT }} -Psigning.secretKeyRingFile=secret.gpg -Psigning.keyId=${{secrets.SIGNING_KEYID}} -Psonatype.user=${{secrets.SONATYPE_USERNAME}} -Pgpr.user=whilein -Pgpr.password=${{secrets.GITHUB_TOKEN}} -Psigning.password=${{secrets.SIGNING_PASSWORD}} -Psigning.secretKeyRingFile=/root/secret.gpg -Psonatype.password=${{secrets.SONATYPE_PASSWORD}}
+        run: ./gradlew test publishMavenJavaPublicationToMavenRepository --no-parallel --no-daemon --build-cache -Pgithub.tag=${{ steps.github_tag.outputs.RESULT }} -Psigning.secretKeyRingFile=secret.gpg -Psigning.keyId=${{secrets.SIGNING_KEYID}} -Psonatype.user=${{secrets.SONATYPE_USERNAME}} -Pgpr.user=whilein -Pgpr.password=${{secrets.GITHUB_TOKEN}} -Psigning.password=${{secrets.SIGNING_PASSWORD}} -Psigning.secretKeyRingFile=${GITHUB_WORKSPACE}/secret.gpg -Psonatype.password=${{secrets.SONATYPE_PASSWORD}}
