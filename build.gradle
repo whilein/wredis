@@ -140,6 +140,18 @@ subprojects {
     }
 
     signing {
+        def secretFile = new File(rootDir, "secret.gpg")
+
+        if (!secretFile.exists()) {
+            return
+        }
+
+        useInMemoryPgpKeys(
+                findProperty('signing.keyId'),
+                secretFile.toString(),
+                findProperty('signing.password')
+        )
+
         sign publishing.publications
     }
 
