@@ -33,9 +33,6 @@ dependencyUpdates {
     }
 }
 
-group "io.github.whilein"
-version releaseVersion
-
 subprojects {
     apply from: new File(rootDir, "libs.gradle")
 
@@ -43,6 +40,8 @@ subprojects {
     apply plugin: "signing"
     apply plugin: "maven-publish"
 
+    group "io.github.whilein"
+    version releaseVersion
 
     repositories {
         mavenCentral()
