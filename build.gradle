@@ -140,18 +140,9 @@ subprojects {
     }
 
     signing {
-        def secretFile = new File(rootDir, "secret.gpg")
-
-        if (!secretFile.exists()) {
-            return
-        }
-
-        println(findProperty("signing.keyId"))
-        println(findProperty("signing.password"))
-
         useInMemoryPgpKeys(
                 findProperty('signing.keyId'),
-                secretFile.getAbsolutePath(),
+                new File(rootDir, "secret.gpg").getAbsolutePath(),
                 findProperty('signing.password')
         )
 
