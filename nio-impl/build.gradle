@@ -1,3 +1,3 @@
 dependencies {
-    implementation project(":wredis-core")
+    implementation project(":wredis-api")
 }

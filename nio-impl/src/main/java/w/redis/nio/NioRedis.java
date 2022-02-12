@@ -31,7 +31,6 @@ import w.redis.RedisAuthException;
 import w.redis.RedisConfig;
 import w.redis.RedisResponse;
 import w.redis.RedisSocketException;
-import w.redis.util.NumberUtils;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
