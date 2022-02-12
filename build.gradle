@@ -42,20 +42,18 @@ subprojects {
 
     group "io.github.whilein"
     version releaseVersion
+    description "Lightweight and fast redis client for java"
 
     repositories {
         mavenCentral()
     }
 
-    def projectName = it.name
-    def projectDescription = it.description
-
     publishing {
         publications {
             mavenJava(MavenPublication) {
                 pom {
-                    name = projectName
-                    description = projectDescription
+                    name = it.name
+                    description = it.description
 
                     url = "https://github.com/whilein/wredis"
 
@@ -92,7 +90,7 @@ subprojects {
                 }
 
                 groupId = project.group
-                artifactId = projectName
+                artifactId = project.name
                 version = project.version
 
                 from components.java
@@ -103,7 +101,6 @@ subprojects {
             mavenLocal()
 
             // maven central
-
             maven {
                 url = "https://s01.oss.sonatype.org/service/local/staging/deploy/maven2"
 
