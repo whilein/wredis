@@ -141,7 +141,7 @@ subprojects {
 
     signing {
         def secretFile = new File(rootDir, "secret.gpg")
-        println(secretFile + " exists: " + secretFile.exists());
+        println(secretFile.toString() + " exists: " + secretFile.exists().toString())
 
         if (!secretFile.exists()) {
             return
