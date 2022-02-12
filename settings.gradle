@@ -1,1 +1,5 @@
 rootProject.name = 'wredis'
+
+include ':wredis-core'
+
+project(":wredis-core").projectDir = new File(rootDir, "core")

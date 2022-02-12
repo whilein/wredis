@@ -18,11 +18,6 @@ static boolean isNonStable(String version) {
 
 plugins {
     id "com.github.ben-manes.versions" version "0.42.0"
-
-    id "java"
-
-    id 'maven-publish'
-    id 'signing'
 }
 
 def releaseVersion = findProperty("github.tag") ?: getCommit()
@@ -40,115 +35,122 @@ dependencyUpdates {
 
 group "io.github.whilein"
 version releaseVersion
-description "Lightweight and fast redis client for java"
 
-apply from: new File(rootDir, "libs.gradle")
+subprojects {
+    apply from: new File(rootDir, "libs.gradle")
 
-repositories {
-    mavenCentral()
-}
+    apply plugin: "java"
+    apply plugin: "signing"
+    apply plugin: "maven-publish"
 
-publishing {
-    publications {
-        mavenJava(MavenPublication) {
-            pom {
-                name = project.name
-                description = project.description
-
-                url = "https://github.com/whilein/wredis"
-
-                organization {
-                    name = 'io.github.whilein'
-                    url = 'https://github.com/whilein'
-                }
-
-                issueManagement {
-                    system = 'GitHub'
-                    url = 'https://github.com/whilein/wredis/issues'
-                }
-
-                licenses {
-                    license {
-                        name = 'The Apache License, Version 2.0'
-                        url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
-                    }
-                }
-
-                scm {
-                    url = 'https://github.com/whilein/wredis'
-                    connection = 'scm:https://github.com/whilein/wredis.git'
-                    developerConnection = 'scm:git://github.com/whilein/wredis.git'
-                }
-
-                developers {
-                    developer {
-                        id = "whilein"
-                        name = "whilein"
-                        email = "whilein.1@gmail.com"
-                    }
-                }
-            }
-
-            groupId = project.group
-            artifactId = project.name
-            version = project.version
-
-            from components.java
-        }
-    }
 
     repositories {
-        mavenLocal()
+        mavenCentral()
+    }
 
-        // maven central
+    publishing {
+        publications {
+            mavenJava(MavenPublication) {
+                pom {
+                    name = project.name
+                    description = project.description
 
-        maven {
-            url = "https://s01.oss.sonatype.org/service/local/staging/deploy/maven2"
+                    url = "https://github.com/whilein/wredis"
 
-            credentials {
-                username = findProperty('sonatype.user')
-                password = findProperty('sonatype.password')
+                    organization {
+                        name = 'io.github.whilein'
+                        url = 'https://github.com/whilein'
+                    }
+
+                    issueManagement {
+                        system = 'GitHub'
+                        url = 'https://github.com/whilein/wredis/issues'
+                    }
+
+                    licenses {
+                        license {
+                            name = 'The Apache License, Version 2.0'
+                            url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+                        }
+                    }
+
+                    scm {
+                        url = 'https://github.com/whilein/wredis'
+                        connection = 'scm:https://github.com/whilein/wredis.git'
+                        developerConnection = 'scm:git://github.com/whilein/wredis.git'
+                    }
+
+                    developers {
+                        developer {
+                            id = "whilein"
+                            name = "whilein"
+                            email = "whilein.1@gmail.com"
+                        }
+                    }
+                }
+
+                groupId = project.group
+                artifactId = project.name
+                version = project.version
+
+                from components.java
+            }
+        }
+
+        repositories {
+            mavenLocal()
+
+            // maven central
+
+            maven {
+                url = "https://s01.oss.sonatype.org/service/local/staging/deploy/maven2"
+
+                credentials {
+                    username = findProperty('sonatype.user')
+                    password = findProperty('sonatype.password')
+                }
             }
         }
     }
-}
 
-dependencies {
-    compileOnly libs.lombok
-    annotationProcessor libs.lombok
 
-    testCompileOnly libs.lombok
-    testAnnotationProcessor libs.lombok
+    dependencies {
+        compileOnly libs.lombok
+        annotationProcessor libs.lombok
 
-    compileOnly libs.annotations
-    testCompileOnly libs.annotations
+        testCompileOnly libs.lombok
+        testAnnotationProcessor libs.lombok
 
-    testImplementation libs.junit.api
-    testRuntimeOnly libs.junit.engine
-}
+        compileOnly libs.annotations
+        testCompileOnly libs.annotations
 
-tasks.withType(JavaCompile) {
-    options.encoding = "UTF-8"
-    targetCompatibility = JavaVersion.VERSION_11
-    sourceCompatibility = JavaVersion.VERSION_11
-}
+        testImplementation libs.junit.api
+        testRuntimeOnly libs.junit.engine
+    }
 
-java {
-    withJavadocJar()
-    withSourcesJar()
-}
+    tasks.withType(JavaCompile) {
+        options.encoding = "UTF-8"
+        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_11
+    }
 
-signing {
-    sign publishing.publications
-}
+    java {
+        withJavadocJar()
+        withSourcesJar()
+    }
 
-test {
-    useJUnitPlatform()
+    signing {
+        sign publishing.publications
+    }
 
-    testLogging {
-        showStandardStreams = true
+    test {
+        useJUnitPlatform()
 
-        exceptionFormat "short"
-        events("started", "skipped", "failed")
+        testLogging {
+            showStandardStreams = true
+
+            exceptionFormat "short"
+            events("started", "skipped", "failed")
+        }
     }
 }
