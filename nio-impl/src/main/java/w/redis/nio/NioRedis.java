@@ -271,7 +271,8 @@ public final class NioRedis implements Redis {
     }
 
     @Override
-    public void close() throws Exception {
+    @SneakyThrows
+    public void close() {
         if (session != null) {
             closed = true;
 
