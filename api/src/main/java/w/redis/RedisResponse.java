@@ -27,8 +27,6 @@ public interface RedisResponse {
 
     void setBuffer(@NotNull ByteBuffer buffer);
 
-    boolean hasNext();
-
     boolean isError();
 
     int nextArray();
