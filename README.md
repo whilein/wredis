@@ -57,13 +57,13 @@ public class Main {
     <dependency>
         <groupId>io.github.whilein</groupId>
         <artifactId>wredis-api</artifactId>
-        <version>0.1.7</version>
+        <version>0.1.8</version>
     </dependency>
 
     <dependency>
         <groupId>io.github.whilein</groupId>
         <artifactId>wredis-nio-impl</artifactId>
-        <version>0.1.7</version>
+        <version>0.1.8</version>
     </dependency>
 </dependencies>
 ```
@@ -72,7 +72,7 @@ public class Main {
 
 ```groovy
 dependencies {
-    implementation 'io.github.whilein:wredis-api:0.1.7'
-    implementation 'io.github.whilein:wredis-nio-impl:0.1.7'
+    implementation 'io.github.whilein:wredis-api:0.1.8'
+    implementation 'io.github.whilein:wredis-nio-impl:0.1.8'
 }
 ```
