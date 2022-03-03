@@ -35,6 +35,8 @@ public interface Redis extends AutoCloseable {
 
     @NotNull RedisResponse read();
 
+    void readMore();
+
     @NotNull Redis writeInt(int number);
 
     @NotNull Redis writeLong(long number);

@@ -17,11 +17,13 @@
 package w.redis.nio;
 
 import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
+import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.experimental.FieldDefaults;
+import lombok.experimental.NonFinal;
 import lombok.val;
 import org.jetbrains.annotations.NotNull;
+import w.redis.Redis;
 import w.redis.RedisResponse;
 
 import java.lang.reflect.Modifier;
@@ -31,8 +33,8 @@ import java.util.Arrays;
 /**
  * @author whilein
  */
-@FieldDefaults(level = AccessLevel.PRIVATE)
-@NoArgsConstructor(access = AccessLevel.PRIVATE)
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public final class NioRedisResponse implements RedisResponse {
 
     private static final int STATE_ARRAY = 5;
@@ -48,7 +50,7 @@ public final class NioRedisResponse implements RedisResponse {
     private static String getStateName(final int state) {
         for (val field : NioRedisResponse.class.getDeclaredFields()) {
             if (Modifier.isStatic(field.getModifiers())) {
-                if(state == field.getInt(null)) {
+                if (state == field.getInt(null)) {
                     return field.getName();
                 }
             }
@@ -57,7 +59,12 @@ public final class NioRedisResponse implements RedisResponse {
         return "";
     }
 
+    Redis redis;
+
+    @NonFinal
     ByteBuffer buffer;
+
+    @NonFinal
     int state;
 
     @Override
@@ -66,8 +73,8 @@ public final class NioRedisResponse implements RedisResponse {
         this.state = 0;
     }
 
-    public static @NotNull RedisResponse create() {
-        return new NioRedisResponse();
+    public static @NotNull RedisResponse create(final @NotNull Redis redis) {
+        return new NioRedisResponse(redis);
     }
 
     private void resetState() {
@@ -104,13 +111,24 @@ public final class NioRedisResponse implements RedisResponse {
     }
 
     private int ensureNext() {
-        final int state = readState();
+        int state = readState();
 
         if (state == STATE_EOF) {
-            throw new IllegalStateException("No more data in response");
+            redis.readMore();
+            resetState();
+
+            state = readState();
         }
 
         return state;
+    }
+
+    private void ensureReadable(final int amount) {
+        val remaining = buffer.remaining();
+
+        if (amount > remaining) {
+            redis.readMore();
+        }
     }
 
     @Override
@@ -152,6 +170,8 @@ public final class NioRedisResponse implements RedisResponse {
                 val number = readInt();
                 val offset = buffer.position();
 
+                ensureReadable(number + 2); // string length + crlf
+
                 try {
                     return new String(buffer.array(), offset, number);
                 } finally {
@@ -177,24 +197,26 @@ public final class NioRedisResponse implements RedisResponse {
         long result = 0;
 
         while (true) {
-            value = buffer.get();
+            while (buffer.hasRemaining()) {
+                value = buffer.get();
 
-            if (prev == 0 && value == '-') {
-                negative = true;
-            } else if (value == '\n' && prev == '\r') {
-                break;
+                if (prev == 0 && value == '-') {
+                    negative = true;
+                } else if (value == '\n' && prev == '\r') {
+                    return negative ? -result : result;
+                }
+
+                prev = value;
+
+                val digit = digit((char) value);
+
+                if (digit != -1) {
+                    result = result * 10 + digit;
+                }
             }
 
-            prev = value;
-
-            val digit = digit((char) value);
-
-            if (digit != -1) {
-                result = result * 10 + digit;
-            }
+            redis.readMore();
         }
-
-        return negative ? -result : result;
     }
 
     private int readInt() {
@@ -204,37 +226,43 @@ public final class NioRedisResponse implements RedisResponse {
         int result = 0;
 
         while (true) {
-            value = buffer.get();
+            while (buffer.hasRemaining()) {
+                value = buffer.get();
 
-            if (prev == 0 && value == '-') {
-                negative = true;
-            } else if (value == '\n' && prev == '\r') {
-                break;
+                if (prev == 0 && value == '-') {
+                    negative = true;
+                } else if (value == '\n' && prev == '\r') {
+                    return negative ? -result : result;
+                }
+
+                prev = value;
+
+                val digit = digit((char) value);
+
+                if (digit != -1) {
+                    result = result * 10 + digit;
+                }
             }
 
-            prev = value;
-
-            val digit = digit((char) value);
-
-            if (digit != -1) {
-                result = result * 10 + digit;
-            }
+            redis.readMore();
         }
-
-        return negative ? -result : result;
     }
 
     private void skipUntilCrlf() {
         byte prev = 0, value;
 
         while (true) {
-            value = buffer.get();
+            while (buffer.hasRemaining()) {
+                value = buffer.get();
 
-            if (value == '\n' && prev == '\r') {
-                break;
+                if (value == '\n' && prev == '\r') {
+                    return;
+                }
+
+                prev = value;
             }
 
-            prev = value;
+            redis.readMore();
         }
     }
 
@@ -281,21 +309,27 @@ public final class NioRedisResponse implements RedisResponse {
         byte prev = 0, value;
         int read = 0;
 
+        root:
         while (true) {
-            if (read >= len) {
-                break;
+            while (buffer.hasRemaining()) {
+                if (read >= len) {
+                    break root;
+                }
+
+                value = buffer.get();
+
+                if (value == '\n' && prev == '\r') {
+                    read--; // remove \r from length
+                    resetState();
+
+                    break root;
+                }
+
+                prev = value;
+                read++;
             }
 
-            value = buffer.get();
-
-            if (value == '\n' && prev == '\r') {
-                read--; // remove \r from length
-                resetState();
-                break;
-            }
-
-            prev = value;
-            read++;
+            redis.readMore();
         }
 
         System.arraycopy(buffer.array(), start, bytes, off, read);

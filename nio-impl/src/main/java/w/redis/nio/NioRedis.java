@@ -57,6 +57,7 @@ public final class NioRedis implements Redis {
 
     DynReadBuffer read;
 
+    @NonFinal
     RedisResponse response;
 
     long timeout;
@@ -73,16 +74,19 @@ public final class NioRedis implements Redis {
     public static @NotNull Redis create(
             final @NotNull RedisConfig config
     ) {
-        return new NioRedis(
+        val redis = new NioRedis(
                 config.getAddress(),
                 config.getUsername(),
                 config.getPassword(),
                 new DynWriteBuffer(ByteBuffer.allocate(config.getWriteBufferCapacity()), config.getAsciiWriter()),
                 new DynReadBuffer(ByteBuffer.allocate(config.getReadBufferCapacity())),
-                NioRedisResponse.create(),
                 config.getConnectTimeoutMillis(),
                 config.isTcpNoDelay()
         );
+
+        redis.response = NioRedisResponse.create(redis);
+
+        return redis;
     }
 
     private static void awaitReadable(final Selector selector) throws IOException {
@@ -120,6 +124,7 @@ public final class NioRedis implements Redis {
             try {
                 val channel = SocketChannel.open();
                 channel.setOption(StandardSocketOptions.TCP_NODELAY, tcpNoDelay);
+                //channel.setOption(StandardSocketOptions.SO_RCVBUF, 1);
                 channel.configureBlocking(false);
 
                 val selector = Selector.open();
@@ -227,7 +232,6 @@ public final class NioRedis implements Redis {
     @SneakyThrows
     public void flush() {
         connect();
-
         _flush();
     }
 
@@ -237,14 +241,16 @@ public final class NioRedis implements Redis {
         connect();
 
         _flush();
-        return _read();
+        _read();
+
+        return response;
     }
 
-    private RedisResponse _read() throws IOException {
+    private void _read() throws IOException {
+        awaitReadable(session.selector);
+
         ByteBuffer buffer = read.buffer;
         buffer.clear();
-
-        awaitReadable(session.selector);
 
         val channel = session.channel;
 
@@ -257,16 +263,20 @@ public final class NioRedis implements Redis {
         buffer.flip();
 
         response.setBuffer(buffer);
-
-        return response;
     }
 
     @Override
     @SneakyThrows
-    public @NotNull RedisResponse read() {
+    public void readMore() {
         connect();
+        _read();
+    }
 
-        return _read();
+    @Override
+    public @NotNull RedisResponse read() {
+        readMore();
+
+        return response;
     }
 
     @Override
@@ -323,11 +333,12 @@ public final class NioRedis implements Redis {
             final int currentCapacity = buffer.capacity();
 
             if (requiredCapacity > currentCapacity) {
-                resize(Math.min(requiredCapacity, currentCapacity * 2));
+                resize(Math.max(requiredCapacity, currentCapacity * 2));
             }
         }
 
         public void writeCrlf() {
+            ensure(2);
             buffer.put((byte) '\r').put((byte) '\n');
         }
 

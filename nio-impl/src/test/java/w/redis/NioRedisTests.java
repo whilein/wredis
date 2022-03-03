@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import w.redis.nio.NioRedis;
 
 import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.concurrent.TimeUnit;
 
@@ -57,6 +58,21 @@ final class NioRedisTests {
     void readString() {
         val response = redis.writeCommand("PING").flushAndRead();
         assertEquals("PONG", response.nextString());
+    }
+
+    @Test
+    void bufferOverflow() {
+        for (int i = 0; i < 5000; i++) {
+            redis.writeCommand("SISMEMBER", 2)
+                    .writeAscii("ABCDEF1234567890")
+                    .writeBytes("ABCDEF1234567890".getBytes(StandardCharsets.UTF_8));
+        }
+
+        val response = redis.flushAndRead();
+
+        for (int i = 0; i < 5000; i++) {
+            assertEquals(0, response.nextInt());
+        }
     }
 
     @Test
