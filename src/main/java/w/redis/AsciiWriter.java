@@ -18,7 +18,6 @@ package w.redis;
 
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
-import org.jetbrains.annotations.NotNull;
 import w.redis.buffer.WriteRedisBuffer;
 
 import java.nio.ByteBuffer;
@@ -33,11 +32,11 @@ import java.nio.ByteBuffer;
  */
 public interface AsciiWriter {
 
-    static @NotNull AsciiWriter defaultAsciiWriter() {
+    static AsciiWriter defaultAsciiWriter() {
         return Default.INSTANCE;
     }
 
-    void write(@NotNull String text, @NotNull WriteRedisBuffer buffer);
+    void write(String text, WriteRedisBuffer buffer);
 
     @NoArgsConstructor(access = AccessLevel.PRIVATE)
     final class Default implements AsciiWriter {
@@ -45,7 +44,7 @@ public interface AsciiWriter {
         private static final AsciiWriter INSTANCE = new Default();
 
         @Override
-        public void write(final @NotNull String text, final @NotNull WriteRedisBuffer buffer) {
+        public void write(final String text, final WriteRedisBuffer buffer) {
             for (int i = 0, j = text.length(); i < j; i++) {
                 buffer.writeRaw((byte) text.charAt(i));
             }

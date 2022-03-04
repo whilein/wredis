@@ -17,7 +17,6 @@
 package w.redis.buffer;
 
 import lombok.val;
-import org.jetbrains.annotations.NotNull;
 import w.redis.AsciiWriter;
 import w.redis.util.NumberUtils;
 
@@ -49,7 +48,7 @@ public final class WriteRedisBuffer extends RedisBuffer {
         array[position++] = value;
     }
 
-    public void writeRaw(final byte @NotNull [] value) {
+    public void writeRaw(final byte[] value) {
         val length = value.length;
         System.arraycopy(value, 0, array, position, length);
         this.position += length;
@@ -60,7 +59,7 @@ public final class WriteRedisBuffer extends RedisBuffer {
         writeRaw((byte) '\n');
     }
 
-    public void writeCommand(final @NotNull String command, final int arguments) {
+    public void writeCommand(final String command, final int arguments) {
         _writeLength('*', arguments + 1);
         val commandLength = command.length();
         _writeLength('$', commandLength);
@@ -70,7 +69,7 @@ public final class WriteRedisBuffer extends RedisBuffer {
         _writeCrlf();
     }
 
-    public void _writeAscii(final @NotNull String ascii) {
+    public void _writeAscii(final String ascii) {
         asciiWriter.write(ascii, this);
     }
 
@@ -192,7 +191,7 @@ public final class WriteRedisBuffer extends RedisBuffer {
         _writeCrlf();
     }
 
-    public void writeAscii(final @NotNull String text) {
+    public void writeAscii(final String text) {
         if (text.length() == 0) {
             _writeEmptyString();
             return;
@@ -207,7 +206,7 @@ public final class WriteRedisBuffer extends RedisBuffer {
         _writeCrlf();
     }
 
-    public void writeUTF(final @NotNull String text) {
+    public void writeUTF(final String text) {
         if (text.length() == 0) {
             _writeEmptyString();
             return;

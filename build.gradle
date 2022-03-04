@@ -17,6 +17,9 @@ static boolean isNonStable(String version) {
 }
 
 plugins {
+    id "java"
+    id "signing"
+    id "maven-publish"
     id "com.github.ben-manes.versions" version "0.42.0"
 }
 
@@ -32,12 +35,6 @@ dependencyUpdates {
         checkForGradleUpdate = true
     }
 }
-
-apply from: new File(rootDir, "libs.gradle")
-
-apply plugin: "java"
-apply plugin: "signing"
-apply plugin: "maven-publish"
 
 group "io.github.whilein"
 version releaseVersion
@@ -118,9 +115,6 @@ dependencies {
 
     testCompileOnly libs.lombok
     testAnnotationProcessor libs.lombok
-
-    compileOnly libs.annotations
-    testCompileOnly libs.annotations
 
     testImplementation libs.junit.api
     testRuntimeOnly libs.junit.engine

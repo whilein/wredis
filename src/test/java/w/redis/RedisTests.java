@@ -40,9 +40,9 @@ final class RedisTests {
         boolean connected;
 
         try {
-            redis = Redis.create(RedisConfig.builder(new InetSocketAddress("localhost", 6379))
-                            .connectTimeout(1, TimeUnit.SECONDS)
-                            .build())
+            redis = new Redis(new RedisConfigBuilder(new InetSocketAddress("localhost", 6379))
+                    .connectTimeout(1, TimeUnit.SECONDS)
+                    .build())
                     .connect();
 
             connected = true;

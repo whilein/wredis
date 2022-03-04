@@ -17,13 +17,11 @@
 package w.redis;
 
 import lombok.AccessLevel;
-import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.NonFinal;
 import lombok.val;
-import org.jetbrains.annotations.NotNull;
 import w.redis.buffer.ReadRedisBuffer;
 import w.redis.buffer.WriteRedisBuffer;
 
@@ -37,7 +35,6 @@ import java.net.Socket;
  * @author whilein
  */
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public final class Redis {
 
     InetSocketAddress address;
@@ -52,38 +49,31 @@ public final class Redis {
 
     ReadRedisBuffer read;
 
-    @NonFinal
     RedisResponse response;
 
     long timeout;
 
     boolean tcpNoDelay;
 
-    @Getter
     @NonFinal
     boolean closed;
 
     @NonFinal
     RedisSession session;
 
-    public static @NotNull Redis create(
-            final @NotNull RedisConfig config
-    ) {
-        val redis = new Redis(
-                config.getAddress(),
-                config.getUsername(),
-                config.getPassword(),
-                config.getSoSndBuf(),
-                config.getSoRcvBuf(),
-                new WriteRedisBuffer(new byte[config.getWriteBufferCapacity()], 0, config.getAsciiWriter()),
-                new ReadRedisBuffer(new byte[config.getReadBufferCapacity()], 0),
-                config.getConnectTimeoutMillis(),
-                config.isTcpNoDelay()
-        );
+    public Redis(final RedisConfig config) {
+        this.address = config.getAddress();
+        this.username = config.getUsername();
+        this.password = config.getPassword();
+        this.soSndBuf = config.getSoSndBuf();
+        this.soRcvBuf = config.getSoRcvBuf();
+        this.write = new WriteRedisBuffer(new byte[config.getWriteBufferCapacity()],
+                0, config.getAsciiWriter());
+        this.read = new ReadRedisBuffer(new byte[config.getReadBufferCapacity()], 0);
+        this.timeout = config.getConnectTimeoutMillis();
+        this.tcpNoDelay = config.isTcpNoDelay();
 
-        redis.response = new RedisResponse(redis, redis.read);
-
-        return redis;
+        this.response = new RedisResponse(this, read);
     }
 
     private void _connect() throws RedisSocketException {
@@ -129,43 +119,43 @@ public final class Redis {
         }
     }
 
-    public @NotNull Redis connect() throws RedisSocketException {
+    public Redis connect() throws RedisSocketException {
         _connect();
 
         return this;
     }
 
-    public @NotNull Redis writeInt(final int number) {
+    public Redis writeInt(final int number) {
         write.writeInt(number);
 
         return this;
     }
 
-    public @NotNull Redis writeLong(final long number) {
+    public Redis writeLong(final long number) {
         write.writeLong(number);
 
         return this;
     }
 
-    public @NotNull Redis writeUTF(final @NotNull String text) {
+    public Redis writeUTF(final String text) {
         write.writeUTF(text);
 
         return this;
     }
 
-    public @NotNull Redis writeAscii(final @NotNull String text) {
+    public Redis writeAscii(final String text) {
         write.writeAscii(text);
 
         return this;
     }
 
-    public @NotNull Redis writeBytes(final byte @NotNull [] bytes) {
+    public Redis writeBytes(final byte[] bytes) {
         write.writeBytes(bytes);
 
         return this;
     }
 
-    public @NotNull Redis writeCommand(final @NotNull String name, final int arguments) {
+    public Redis writeCommand(final String name, final int arguments) {
         write.writeCommand(name, arguments);
 
         return this;
@@ -187,7 +177,7 @@ public final class Redis {
     }
 
     @SneakyThrows
-    public @NotNull RedisResponse flushAndRead() {
+    public RedisResponse flushAndRead() {
         _connect();
 
         _flush();
@@ -206,9 +196,9 @@ public final class Redis {
         val array = readBuffer.getArray();
         val arrayOffset = readBuffer.getPosition();
 
-        val read = input.read(array, arrayOffset, array.length - arrayOffset);
+        final int read;
 
-        if (read == readBuffer.getCapacity()) {
+        if ((read = input.read(array, arrayOffset, array.length - arrayOffset)) == readBuffer.getCapacity()) {
             readBuffer.resize();
         }
 
@@ -223,7 +213,7 @@ public final class Redis {
     }
 
     @SneakyThrows
-    public @NotNull RedisResponse read() {
+    public RedisResponse read() {
         _connect();
         _read();
 

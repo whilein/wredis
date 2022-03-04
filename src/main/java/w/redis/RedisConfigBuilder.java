@@ -20,7 +20,6 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.NonFinal;
-import org.jetbrains.annotations.NotNull;
 
 import java.net.InetSocketAddress;
 import java.util.concurrent.TimeUnit;
@@ -61,9 +60,9 @@ public final class RedisConfigBuilder {
     @NonFinal
     boolean tcpNoDelay;
 
-    public @NotNull RedisConfigBuilder auth(
-            final @NotNull String username,
-            final @NotNull String password
+    public RedisConfigBuilder auth(
+            final String username,
+            final String password
     ) {
         this.username = username;
         this.password = password;
@@ -71,7 +70,7 @@ public final class RedisConfigBuilder {
         return this;
     }
 
-    public @NotNull RedisConfigBuilder auth(final @NotNull String password) {
+    public RedisConfigBuilder auth(final String password) {
         this.username = null;
         this.password = password;
 
@@ -88,7 +87,7 @@ public final class RedisConfigBuilder {
      * @param asciiWriter новый {@link AsciiWriter}
      * @return {@code this}
      */
-    public @NotNull RedisConfigBuilder asciiWriter(final @NotNull AsciiWriter asciiWriter) {
+    public RedisConfigBuilder asciiWriter(final AsciiWriter asciiWriter) {
         this.asciiWriter = asciiWriter;
 
         return this;
@@ -102,7 +101,7 @@ public final class RedisConfigBuilder {
      * @param value новое значение опции
      * @return {@code this}
      */
-    public @NotNull RedisConfigBuilder soRcvBuf(final int value) {
+    public RedisConfigBuilder soRcvBuf(final int value) {
         this.soRcvBuf = value;
         return this;
     }
@@ -115,7 +114,7 @@ public final class RedisConfigBuilder {
      * @param value новое значение опции
      * @return {@code this}
      */
-    public @NotNull RedisConfigBuilder soSndBuf(final int value) {
+    public RedisConfigBuilder soSndBuf(final int value) {
         this.soSndBuf = value;
         return this;
     }
@@ -128,7 +127,7 @@ public final class RedisConfigBuilder {
      * @param capacity новый изначальный размер буфера записи
      * @return {@code this}
      */
-    public @NotNull RedisConfigBuilder writeBufferCapacity(final int capacity) {
+    public RedisConfigBuilder writeBufferCapacity(final int capacity) {
         this.writeCapacity = capacity;
 
         return this;
@@ -142,7 +141,7 @@ public final class RedisConfigBuilder {
      * @param capacity новый изначальный размер буфера чтения
      * @return {@code this}
      */
-    public @NotNull RedisConfigBuilder readBufferCapacity(final int capacity) {
+    public RedisConfigBuilder readBufferCapacity(final int capacity) {
         this.readCapacity = capacity;
 
         return this;
@@ -158,7 +157,7 @@ public final class RedisConfigBuilder {
      * @param timeUnit единица времени, в которой измеряется таймаут
      * @return {@code this}
      */
-    public @NotNull RedisConfigBuilder connectTimeout(final long timeout, final @NotNull TimeUnit timeUnit) {
+    public RedisConfigBuilder connectTimeout(final long timeout, final TimeUnit timeUnit) {
         this.timeout = timeUnit.toMillis(timeout);
 
         return this;
@@ -172,13 +171,13 @@ public final class RedisConfigBuilder {
      * @param tcpNoDelay новое значение опции {@code TCP_NODELAY}
      * @return {@code this}
      */
-    public @NotNull RedisConfigBuilder tcpNoDelay(final boolean tcpNoDelay) {
+    public RedisConfigBuilder tcpNoDelay(final boolean tcpNoDelay) {
         this.tcpNoDelay = tcpNoDelay;
 
         return this;
     }
 
-    public @NotNull RedisConfig build() {
+    public RedisConfig build() {
         return new RedisConfig(
                 address,
                 writeCapacity == null ? 1024 : writeCapacity,

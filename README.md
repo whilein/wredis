@@ -29,8 +29,8 @@
 ```java
 public class Main {
     public static void main(final String[] args) {
-        Redis redis = Redis.create(RedisConfig.builder(new InetSocketAddress(host, port))
-                        .auth(username, password)
+        Redis redis = new Redis(new RedisConfigBuilder(new InetSocketAddress(host, port))
+                .auth(username, password)
                         .connectTimeout(1, TimeUnit.SECONDS)
                         .build())
                 .connect();

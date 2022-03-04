@@ -22,7 +22,6 @@ import lombok.SneakyThrows;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.NonFinal;
 import lombok.val;
-import org.jetbrains.annotations.NotNull;
 import w.redis.buffer.ReadRedisBuffer;
 import w.redis.buffer.RedisBuffer;
 
@@ -74,13 +73,15 @@ public final class RedisResponse {
 
     private int readState() {
         if (state == STATE_UNKNOWN) {
-            if (!buffer.hasRemaining()) {
+            final ReadRedisBuffer buffer;
+
+            if (!(buffer = this.buffer).hasRemaining()) {
                 redis.readMore();
             }
 
-            val value = buffer.getNext();
+            final byte value;
 
-            switch (value) {
+            switch ((value = buffer.getNext())) {
                 case '*':
                     return state = STATE_ARRAY;
                 case ':':
@@ -99,7 +100,10 @@ public final class RedisResponse {
         return state;
     }
 
+    @Override
     public String toString() {
+        val buffer = this.buffer;
+
         return "\"" + new String(buffer.getArray(), 0, buffer.getLength())
                 .replace("\r", "\\r")
                 .replace("\n", "\\n") + "\"";
@@ -121,7 +125,7 @@ public final class RedisResponse {
         return readInt();
     }
 
-    public @NotNull String nextString() {
+    public String nextString() {
         val state = readState();
 
         val buffer = this.buffer;
@@ -164,25 +168,25 @@ public final class RedisResponse {
         val buffer = this.buffer;
 
         while (true) {
-            while (buffer.hasRemaining()) {
-                value = buffer.getNext();
-
-                if (prev == 0 && value == '-') {
-                    negative = true;
-                } else if (value == '\n' && prev == '\r') {
-                    return negative ? -result : result;
-                }
-
-                prev = value;
-
-                val digit = digit((char) value);
-
-                if (digit != -1) {
-                    result = result * 10 + digit;
-                }
+            if (!buffer.hasRemaining()) {
+                this.redis.readMore();
             }
 
-            redis.readMore();
+            value = buffer.getNext();
+
+            if (prev == 0 && value == '-') {
+                negative = true;
+            } else if (value == '\n' && prev == '\r') {
+                return negative ? -result : result;
+            }
+
+            prev = value;
+
+            val digit = digit((char) value);
+
+            if (digit != -1) {
+                result = result * 10 + digit;
+            }
         }
     }
 
@@ -195,45 +199,45 @@ public final class RedisResponse {
         val buffer = this.buffer;
 
         while (true) {
-            while (buffer.hasRemaining()) {
-                value = buffer.getNext();
-
-                if (prev == 0 && value == '-') {
-                    negative = true;
-                } else if (value == '\n' && prev == '\r') {
-                    return negative ? -result : result;
-                }
-
-                prev = value;
-
-                val digit = digit((char) value);
-
-                if (digit != -1) {
-                    result = result * 10 + digit;
-                }
+            if (!buffer.hasRemaining()) {
+                this.redis.readMore();
             }
 
-            redis.readMore();
+            value = buffer.getNext();
+
+            if (prev == 0 && value == '-') {
+                negative = true;
+            } else if (value == '\n' && prev == '\r') {
+                return negative ? -result : result;
+            }
+
+            prev = value;
+
+            val digit = digit((char) value);
+
+            if (digit != -1) {
+                result = result * 10 + digit;
+            }
         }
     }
 
     private void skipUntilCrlf() {
-        byte prev = 0, value;
+        byte prev = 0;
 
         val buffer = this.buffer;
 
         while (true) {
-            while (buffer.hasRemaining()) {
-                value = buffer.getNext();
-
-                if (value == '\n' && prev == '\r') {
-                    return;
-                }
-
-                prev = value;
+            if (!buffer.hasRemaining()) {
+                this.redis.readMore();
             }
 
-            redis.readMore();
+            byte value;
+
+            if ((value = buffer.getNext()) == 10 && prev == 13) {
+                return;
+            }
+
+            prev = value;
         }
     }
 
@@ -256,7 +260,7 @@ public final class RedisResponse {
         resetState();
     }
 
-    public byte @NotNull [] nextBytes() {
+    public byte[] nextBytes() {
         readState();
 
         final RedisBuffer buffer;
@@ -270,7 +274,7 @@ public final class RedisResponse {
         return Arrays.copyOfRange(buffer.getArray(), start, end);
     }
 
-    public int nextBytes(final byte @NotNull [] bytes, final int off, final int len) {
+    public int nextBytes(final byte[] bytes, final int off, final int len) {
         readState();
 
         final ReadRedisBuffer buffer;
@@ -280,27 +284,26 @@ public final class RedisResponse {
         byte prev = 0, value;
         int read = 0;
 
-        root:
         while (true) {
-            while (buffer.hasRemaining()) {
-                if (read >= len) {
-                    break root;
-                }
-
-                value = buffer.getNext();
-
-                if (value == '\n' && prev == '\r') {
-                    read--; // remove \r from length
-                    resetState();
-
-                    break root;
-                }
-
-                prev = value;
-                read++;
+            if (!buffer.hasRemaining()) {
+                this.redis.readMore();
             }
 
-            redis.readMore();
+            if (read >= len) {
+                break;
+            }
+
+            value = buffer.getNext();
+
+            if (value == '\n' && prev == '\r') {
+                read--; // remove \r from length
+                resetState();
+
+                break;
+            }
+
+            prev = value;
+            read++;
         }
 
         System.arraycopy(buffer.getArray(), start, bytes, off, read);
@@ -308,7 +311,7 @@ public final class RedisResponse {
         return read;
     }
 
-    public int nextBytes(final byte @NotNull [] bytes) {
+    public int nextBytes(final byte[] bytes) {
         return nextBytes(bytes, 0, bytes.length);
     }
 

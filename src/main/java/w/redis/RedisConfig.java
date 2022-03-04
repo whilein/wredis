@@ -20,7 +20,6 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
-import org.jetbrains.annotations.NotNull;
 
 import java.net.InetSocketAddress;
 
@@ -41,8 +40,4 @@ public final class RedisConfig {
     AsciiWriter asciiWriter;
     String username;
     String password;
-
-    public static @NotNull RedisConfigBuilder builder(final @NotNull InetSocketAddress address) {
-        return new RedisConfigBuilder(address);
-    }
 }
