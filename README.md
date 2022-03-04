@@ -31,7 +31,7 @@ public class Main {
     public static void main(final String[] args) {
         Redis redis = new Redis(new RedisConfigBuilder(new InetSocketAddress(host, port))
                 .auth(username, password)
-                        .connectTimeout(1, TimeUnit.SECONDS)
+                .connectTimeout(1, TimeUnit.SECONDS)
                         .build())
                 .connect();
 
