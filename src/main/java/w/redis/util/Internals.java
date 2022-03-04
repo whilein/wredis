@@ -29,7 +29,7 @@ import java.lang.invoke.VarHandle;
 @UtilityClass
 public class Internals {
 
-    private static final VarHandle VH_VALUE;
+    private final VarHandle VH__STRING_VALUE;
 
     static {
         final MethodHandles.Lookup implLookup;
@@ -47,19 +47,15 @@ public class Internals {
                     theUnsafe.staticFieldBase(implLookupField),
                     theUnsafe.staticFieldOffset(implLookupField)
             );
-        } catch (final Exception e) {
-            throw new RuntimeException(e);
-        }
 
-        try {
-            VH_VALUE = implLookup.findVarHandle(String.class, "value", byte[].class);
+            VH__STRING_VALUE = implLookup.findVarHandle(String.class, "value", byte[].class);
         } catch (final Exception e) {
             throw new RuntimeException(e);
         }
     }
 
-    public byte[] getBytes(final String text) {
-        return (byte[]) VH_VALUE.get(text);
+    public byte[] getBytes(final String string) {
+        return (byte[]) VH__STRING_VALUE.get(string);
     }
 
 }

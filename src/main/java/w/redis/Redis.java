@@ -17,7 +17,6 @@
 package w.redis;
 
 import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.NonFinal;
@@ -59,7 +58,13 @@ public final class Redis {
     boolean closed;
 
     @NonFinal
-    RedisSession session;
+    Socket socket;
+
+    @NonFinal
+    InputStream input;
+
+    @NonFinal
+    OutputStream output;
 
     public Redis(final RedisConfig config) {
         this.address = config.getAddress();
@@ -76,23 +81,20 @@ public final class Redis {
     }
 
     private void _connect() throws RedisSocketException {
-        if (session == null || !session.isConnected()) {
+        if (socket == null || !socket.isConnected()) {
             if (closed) {
                 throw new IllegalStateException("Redis instance was closed");
             }
 
             try {
-                val socket = new Socket();
+                socket = new Socket();
                 socket.setTcpNoDelay(tcpNoDelay);
                 socket.setSendBufferSize(soSndBuf);
                 socket.setReceiveBufferSize(soRcvBuf);
                 socket.connect(address, (int) timeout);
 
-                session = new RedisSession(
-                        socket,
-                        socket.getInputStream(),
-                        socket.getOutputStream()
-                );
+                output = socket.getOutputStream();
+                input = socket.getInputStream();
 
                 if (password != null) {
                     if (username != null) {
@@ -104,10 +106,12 @@ public final class Redis {
                                 .writeUTF(password);
                     }
 
-                    val response = flushAndRead();
+                    final RedisResponse response;
 
-                    if (response.isError()) {
-                        session = null;
+                    if ((response = flushAndRead()).isError()) {
+                        socket = null;
+                        output = null;
+                        input = null;
 
                         throw new RedisAuthException(response.nextString());
                     }
@@ -163,8 +167,7 @@ public final class Redis {
     private void _flush() throws IOException {
         val buffer = write;
 
-        val session = this.session;
-        session.output.write(buffer.getArray(), 0, buffer.getPosition());
+        output.write(buffer.getArray(), 0, buffer.getPosition());
 
         buffer.setPosition(0);
     }
@@ -186,8 +189,6 @@ public final class Redis {
     }
 
     private void _read() throws IOException {
-        val input = session.input;
-
         val readBuffer = read;
         readBuffer.setPosition(0);
         readBuffer.setLength(0);
@@ -221,24 +222,14 @@ public final class Redis {
 
     @SneakyThrows
     public void close() {
-        if (session != null) {
+        if (socket != null) {
             closed = true;
 
-            session.socket.close();
-            session = null;
-        }
-    }
+            socket.close();
+            socket = null;
 
-    @FieldDefaults(makeFinal = true)
-    @RequiredArgsConstructor
-    private static final class RedisSession {
-        Socket socket;
-
-        InputStream input;
-        OutputStream output;
-
-        public boolean isConnected() {
-            return socket.isConnected();
+            output = null;
+            input = null;
         }
     }
 
