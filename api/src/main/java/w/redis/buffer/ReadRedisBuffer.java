@@ -14,35 +14,21 @@
  *    limitations under the License.
  */
 
-package w.redis;
-
-import org.jetbrains.annotations.NotNull;
+package w.redis.buffer;
 
 /**
  * @author whilein
  */
-public interface RedisResponse {
+public interface ReadRedisBuffer extends RedisBuffer {
 
-    void resetState();
+    byte getNext();
 
-    boolean isError();
+    int remaining();
 
-    int nextArray();
+    boolean hasRemaining();
 
-    @NotNull String nextString();
+    int getLength();
 
-    byte @NotNull [] nextBytes();
-
-    void skip();
-
-    void skip(int count);
-
-    int nextBytes(byte @NotNull [] bytes);
-
-    int nextBytes(byte @NotNull [] bytes, int off, int len);
-
-    int nextInt();
-
-    long nextLong();
+    void setLength(int length);
 
 }

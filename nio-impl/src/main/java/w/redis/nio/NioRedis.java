@@ -17,7 +17,6 @@
 package w.redis.nio;
 
 import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
@@ -25,21 +24,20 @@ import lombok.experimental.FieldDefaults;
 import lombok.experimental.NonFinal;
 import lombok.val;
 import org.jetbrains.annotations.NotNull;
-import w.redis.AsciiWriter;
 import w.redis.Redis;
 import w.redis.RedisAuthException;
 import w.redis.RedisConfig;
 import w.redis.RedisResponse;
 import w.redis.RedisSocketException;
+import w.redis.buffer.ReadRedisBuffer;
+import w.redis.buffer.RedisBuffers;
+import w.redis.buffer.WriteRedisBuffer;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.nio.ByteBuffer;
-import java.nio.channels.Channels;
-import java.nio.channels.ReadableByteChannel;
-import java.nio.channels.WritableByteChannel;
-import java.nio.charset.StandardCharsets;
 
 /**
  * @author whilein
@@ -56,9 +54,9 @@ public final class NioRedis implements Redis {
     int soSndBuf;
     int soRcvBuf;
 
-    DynWriteBuffer write;
+    WriteRedisBuffer write;
 
-    DynReadBuffer read;
+    ReadRedisBuffer read;
 
     @NonFinal
     RedisResponse response;
@@ -83,13 +81,13 @@ public final class NioRedis implements Redis {
                 config.getPassword(),
                 config.getSoSndBuf(),
                 config.getSoRcvBuf(),
-                new DynWriteBuffer(ByteBuffer.allocate(config.getWriteBufferCapacity()), config.getAsciiWriter()),
-                new DynReadBuffer(ByteBuffer.allocate(config.getReadBufferCapacity())),
+                RedisBuffers.writeBuffer(config.getWriteBufferCapacity(), config.getAsciiWriter()),
+                RedisBuffers.readBuffer(config.getReadBufferCapacity()),
                 config.getConnectTimeoutMillis(),
                 config.isTcpNoDelay()
         );
 
-        redis.response = NioRedisResponse.create(redis);
+        redis.response = NioRedisResponse.create(redis, redis.read);
 
         return redis;
     }
@@ -110,8 +108,8 @@ public final class NioRedis implements Redis {
 
                 session = new NioRedisSession(
                         socket,
-                        Channels.newChannel(socket.getInputStream()),
-                        Channels.newChannel(socket.getOutputStream())
+                        socket.getInputStream(),
+                        socket.getOutputStream()
                 );
 
                 if (password != null) {
@@ -142,28 +140,28 @@ public final class NioRedis implements Redis {
 
     @Override
     public @NotNull Redis writeInt(final int number) {
-        write.writeNumber(number);
+        write.writeInt(number);
 
         return this;
     }
 
     @Override
     public @NotNull Redis writeLong(final long number) {
-        write.writeNumber(number);
+        write.writeLong(number);
 
         return this;
     }
 
     @Override
     public @NotNull Redis writeUTF(final @NotNull String text) {
-        write.writeTextUTF(text);
+        write.writeUTF(text);
 
         return this;
     }
 
     @Override
     public @NotNull Redis writeAscii(final @NotNull String text) {
-        write.writeTextAscii(text);
+        write.writeAscii(text);
 
         return this;
     }
@@ -176,13 +174,6 @@ public final class NioRedis implements Redis {
     }
 
     @Override
-    public @NotNull Redis writeCommand(final @NotNull String name) {
-        write.writeNoArgCommand(name);
-
-        return this;
-    }
-
-    @Override
     public @NotNull Redis writeCommand(final @NotNull String name, final int arguments) {
         write.writeCommand(name, arguments);
 
@@ -190,13 +181,12 @@ public final class NioRedis implements Redis {
     }
 
     private void _flush() throws IOException {
-        val buffer = write.buffer;
-        buffer.flip();
+        val buffer = write;
 
         val session = this.session;
-        session.output.write(buffer);
+        session.output.write(buffer.getArray(), 0, buffer.getPosition());
 
-        buffer.clear();
+        buffer.setPosition(0);
     }
 
     @Override
@@ -218,20 +208,24 @@ public final class NioRedis implements Redis {
     }
 
     private void _read() throws IOException {
-        ByteBuffer buffer = read.buffer;
-        buffer.clear();
-
         val input = session.input;
 
-        if (input.read(buffer) > 0) {
-            if (buffer.position() == buffer.capacity()) {
-                buffer = read.resize();
-            }
+        val readBuffer = read;
+        readBuffer.setPosition(0);
+        readBuffer.setLength(0);
+
+        val array = readBuffer.getArray();
+        val arrayOffset = readBuffer.getPosition();
+
+        val read = input.read(array, arrayOffset, array.length - arrayOffset);
+
+        if (read == readBuffer.getCapacity()) {
+            readBuffer.resize();
         }
 
-        buffer.flip();
+        readBuffer.setLength(read);
 
-        response.setBuffer(buffer);
+        response.resetState();
     }
 
     @Override
@@ -260,232 +254,13 @@ public final class NioRedis implements Redis {
         }
     }
 
-    @AllArgsConstructor
-    private static abstract class DynBuffer {
-        ByteBuffer buffer;
-
-        public ByteBuffer resize() {
-            return resize(buffer.capacity() * 2);
-        }
-
-        public ByteBuffer resize(final int to) {
-            val newBuffer = ByteBuffer.allocate(to);
-            buffer.flip();
-            newBuffer.put(buffer);
-
-            return this.buffer = newBuffer;
-        }
-
-    }
-
-    private static final class DynReadBuffer extends DynBuffer {
-
-        public DynReadBuffer(final ByteBuffer buffer) {
-            super(buffer);
-        }
-
-    }
-
-    @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-    private static final class DynWriteBuffer extends DynBuffer {
-
-        AsciiWriter asciiWriter;
-
-        public DynWriteBuffer(final ByteBuffer buffer, final AsciiWriter asciiWriter) {
-            super(buffer);
-
-            this.asciiWriter = asciiWriter;
-        }
-
-        private void ensure(final int len) {
-            final int requiredCapacity = buffer.position() + len;
-            final int currentCapacity = buffer.capacity();
-
-            if (requiredCapacity > currentCapacity) {
-                resize(Math.max(requiredCapacity, currentCapacity * 2));
-            }
-        }
-
-        public void writeCrlf() {
-            ensure(2);
-            buffer.put((byte) '\r').put((byte) '\n');
-        }
-
-        public void writeNoArgCommand(final String command) {
-            ensure(4);
-            buffer.put((byte) '*').put((byte) '1');
-            writeCrlf();
-
-            val commandLength = command.length();
-            writeLength('$', commandLength);
-
-            ensure(commandLength);
-            writeAscii(command);
-            writeCrlf();
-        }
-
-        public void writeCommand(final String command, final int arguments) {
-            writeLength('*', arguments + 1);
-            val commandLength = command.length();
-            writeLength('$', commandLength);
-
-            ensure(commandLength);
-            writeAscii(command);
-            writeCrlf();
-        }
-
-        public void writeAscii(final String ascii) {
-            asciiWriter.write(ascii, buffer);
-        }
-
-        private int writeLong(int position, long value) {
-            buffer.position(position);
-
-            while (value > 0) {
-                buffer.put(--position, (byte) ((byte) (value % 10) + '0'));
-                value /= 10;
-            }
-
-            return position;
-        }
-
-
-        private int writeInt(int position, int value) {
-            buffer.position(position);
-
-            while (value > 0) {
-                buffer.put(--position, (byte) ((byte) (value % 10) + '0'));
-                value /= 10;
-            }
-
-            return position;
-        }
-
-        public void writeLength(final char prefix, final int length) {
-            val lengthOfNumber = NumberUtils.getIntLength(length);
-
-            ensure(3 + lengthOfNumber);
-            buffer.put((byte) prefix);
-
-            val position = buffer.position() + lengthOfNumber;
-            writeInt(position, length);
-            writeCrlf();
-        }
-
-        public void writeNumber(final int rawNumber) {
-            val negative = rawNumber < 0;
-
-            final int number;
-            final int length;
-
-            if (negative) {
-                length = NumberUtils.getIntLength(number = -rawNumber) + 1;
-            } else {
-                length = NumberUtils.getIntLength(number = rawNumber);
-            }
-
-            writeLength('$', length);
-
-            ensure(length + 2);
-
-            val position = buffer.position() + length;
-            val lastPosition = writeInt(position, number);
-
-            if (negative) {
-                buffer.put(lastPosition - 1, (byte) '-');
-            }
-
-            writeCrlf();
-        }
-
-        public void writeNumber(final long rawNumber) {
-            val negative = rawNumber < 0;
-
-            final long number;
-            final int length;
-
-            if (negative) {
-                length = NumberUtils.getLongLength(number = -rawNumber) + 1;
-            } else {
-                length = NumberUtils.getLongLength(number = rawNumber);
-            }
-
-            writeLength('$', length);
-
-            ensure(length + 2);
-
-            val position = buffer.position() + length;
-            val lastPosition = writeLong(position, number);
-
-            if (negative) {
-                buffer.put(lastPosition - 1, (byte) '-');
-            }
-
-            writeCrlf();
-        }
-
-        private void writeEmptyString() {
-            ensure(4);
-
-            buffer.put((byte) '$').put((byte) '0');
-            writeCrlf();
-        }
-
-        public void writeBytes(final byte[] bytes) {
-            val blobLength = bytes.length;
-
-            if (blobLength == 0) {
-                writeEmptyString();
-                return;
-            }
-
-            writeLength('$', blobLength);
-
-            ensure(blobLength + 2);
-            buffer.put(bytes);
-            writeCrlf();
-        }
-
-        public void writeTextAscii(final String text) {
-            if (text.length() == 0) {
-                writeEmptyString();
-                return;
-            }
-
-            val textLength = text.length();
-            writeLength('$', textLength);
-
-            ensure(textLength + 2);
-            writeAscii(text);
-
-            writeCrlf();
-        }
-
-        public void writeTextUTF(final String text) {
-            if (text.length() == 0) {
-                writeEmptyString();
-                return;
-            }
-
-            val bytes = text.getBytes(StandardCharsets.UTF_8);
-
-            val textLength = bytes.length;
-            writeLength('$', textLength);
-
-            ensure(textLength + 2);
-            buffer.put(bytes);
-
-            writeCrlf();
-        }
-    }
-
     @FieldDefaults(makeFinal = true)
     @RequiredArgsConstructor
     private static final class NioRedisSession {
         Socket socket;
 
-        ReadableByteChannel input;
-        WritableByteChannel output;
+        InputStream input;
+        OutputStream output;
 
         public boolean isConnected() {
             return socket.isConnected();

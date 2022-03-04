@@ -14,7 +14,7 @@
  *    limitations under the License.
  */
 
-package w.redis.nio;
+package w.redis.util;
 
 import lombok.experimental.UtilityClass;
 

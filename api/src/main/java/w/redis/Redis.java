@@ -47,8 +47,6 @@ public interface Redis extends AutoCloseable {
 
     @NotNull Redis writeBytes(byte @NotNull [] bytes);
 
-    @NotNull Redis writeCommand(@NotNull String name);
-
     @NotNull Redis writeCommand(@NotNull String name, int arguments);
 
 }

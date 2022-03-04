@@ -14,35 +14,35 @@
  *    limitations under the License.
  */
 
-package w.redis;
+package w.redis.buffer;
 
 import org.jetbrains.annotations.NotNull;
 
 /**
  * @author whilein
  */
-public interface RedisResponse {
+public interface WriteRedisBuffer extends RedisBuffer {
 
-    void resetState();
+    void ensure(int length);
 
-    boolean isError();
+    void writeCrlf();
 
-    int nextArray();
+    void writeCommand(@NotNull String command, int arguments);
 
-    @NotNull String nextString();
+    void writeAscii(@NotNull String text);
 
-    byte @NotNull [] nextBytes();
+    void writeUTF(@NotNull String text);
 
-    void skip();
+    void writeRaw(byte value);
 
-    void skip(int count);
+    void writeRaw(byte @NotNull [] value);
 
-    int nextBytes(byte @NotNull [] bytes);
+    void writeEmptyString();
 
-    int nextBytes(byte @NotNull [] bytes, int off, int len);
+    void writeBytes(byte @NotNull [] bytes);
 
-    int nextInt();
+    void writeInt(int value);
 
-    long nextLong();
+    void writeLong(long value);
 
 }

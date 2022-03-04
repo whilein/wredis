@@ -14,35 +14,25 @@
  *    limitations under the License.
  */
 
-package w.redis;
+package w.redis.buffer;
 
 import org.jetbrains.annotations.NotNull;
 
 /**
  * @author whilein
  */
-public interface RedisResponse {
+public interface RedisBuffer {
 
-    void resetState();
+    int getPosition();
 
-    boolean isError();
+    void setPosition(int position);
 
-    int nextArray();
+    byte @NotNull [] getArray();
 
-    @NotNull String nextString();
+    int getCapacity();
 
-    byte @NotNull [] nextBytes();
+    void resize();
 
-    void skip();
-
-    void skip(int count);
-
-    int nextBytes(byte @NotNull [] bytes);
-
-    int nextBytes(byte @NotNull [] bytes, int off, int len);
-
-    int nextInt();
-
-    long nextLong();
+    void resize(int capacity);
 
 }
