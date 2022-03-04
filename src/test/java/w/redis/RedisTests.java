@@ -19,7 +19,6 @@ package w.redis;
 import lombok.val;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import w.redis.nio.NioRedis;
 
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
@@ -32,7 +31,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 /**
  * @author whilein
  */
-final class NioRedisTests {
+final class RedisTests {
 
     static Redis redis;
 
@@ -41,7 +40,7 @@ final class NioRedisTests {
         boolean connected;
 
         try {
-            redis = NioRedis.create(RedisConfig.builder(new InetSocketAddress("localhost", 6379))
+            redis = Redis.create(RedisConfig.builder(new InetSocketAddress("localhost", 6379))
                             .connectTimeout(1, TimeUnit.SECONDS)
                             .build())
                     .connect();

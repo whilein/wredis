@@ -33,123 +33,121 @@ dependencyUpdates {
     }
 }
 
-subprojects {
-    apply from: new File(rootDir, "libs.gradle")
+apply from: new File(rootDir, "libs.gradle")
 
-    apply plugin: "java"
-    apply plugin: "signing"
-    apply plugin: "maven-publish"
+apply plugin: "java"
+apply plugin: "signing"
+apply plugin: "maven-publish"
 
-    group "io.github.whilein"
-    version releaseVersion
-    description "Lightweight and fast redis client for java"
+group "io.github.whilein"
+version releaseVersion
+description "Lightweight and fast redis client for java"
+
+repositories {
+    mavenCentral()
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = project.name
+                description = project.description
+
+                url = "https://github.com/whilein/wredis"
+
+                organization {
+                    name = 'io.github.whilein'
+                    url = 'https://github.com/whilein'
+                }
+
+                issueManagement {
+                    system = 'GitHub'
+                    url = 'https://github.com/whilein/wredis/issues'
+                }
+
+                licenses {
+                    license {
+                        name = 'The Apache License, Version 2.0'
+                        url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+                    }
+                }
+
+                scm {
+                    url = 'https://github.com/whilein/wredis'
+                    connection = 'scm:https://github.com/whilein/wredis.git'
+                    developerConnection = 'scm:git://github.com/whilein/wredis.git'
+                }
+
+                developers {
+                    developer {
+                        id = "whilein"
+                        name = "whilein"
+                        email = "whilein.1@gmail.com"
+                    }
+                }
+            }
+
+            groupId = project.group
+            artifactId = project.name
+            version = project.version
+
+            from components.java
+        }
+    }
 
     repositories {
-        mavenCentral()
-    }
+        mavenLocal()
 
-    publishing {
-        publications {
-            mavenJava(MavenPublication) {
-                pom {
-                    name = project.name
-                    description = project.description
+        // maven central
+        maven {
+            url = "https://s01.oss.sonatype.org/service/local/staging/deploy/maven2"
 
-                    url = "https://github.com/whilein/wredis"
-
-                    organization {
-                        name = 'io.github.whilein'
-                        url = 'https://github.com/whilein'
-                    }
-
-                    issueManagement {
-                        system = 'GitHub'
-                        url = 'https://github.com/whilein/wredis/issues'
-                    }
-
-                    licenses {
-                        license {
-                            name = 'The Apache License, Version 2.0'
-                            url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
-                        }
-                    }
-
-                    scm {
-                        url = 'https://github.com/whilein/wredis'
-                        connection = 'scm:https://github.com/whilein/wredis.git'
-                        developerConnection = 'scm:git://github.com/whilein/wredis.git'
-                    }
-
-                    developers {
-                        developer {
-                            id = "whilein"
-                            name = "whilein"
-                            email = "whilein.1@gmail.com"
-                        }
-                    }
-                }
-
-                groupId = project.group
-                artifactId = project.name
-                version = project.version
-
-                from components.java
-            }
-        }
-
-        repositories {
-            mavenLocal()
-
-            // maven central
-            maven {
-                url = "https://s01.oss.sonatype.org/service/local/staging/deploy/maven2"
-
-                credentials {
-                    username = findProperty('sonatype.user')
-                    password = findProperty('sonatype.password')
-                }
+            credentials {
+                username = findProperty('sonatype.user')
+                password = findProperty('sonatype.password')
             }
         }
     }
+}
 
 
-    dependencies {
-        compileOnly libs.lombok
-        annotationProcessor libs.lombok
+dependencies {
+    compileOnly libs.lombok
+    annotationProcessor libs.lombok
 
-        testCompileOnly libs.lombok
-        testAnnotationProcessor libs.lombok
+    testCompileOnly libs.lombok
+    testAnnotationProcessor libs.lombok
 
-        compileOnly libs.annotations
-        testCompileOnly libs.annotations
+    compileOnly libs.annotations
+    testCompileOnly libs.annotations
 
-        testImplementation libs.junit.api
-        testRuntimeOnly libs.junit.engine
-    }
+    testImplementation libs.junit.api
+    testRuntimeOnly libs.junit.engine
+}
 
-    tasks.withType(JavaCompile) {
-        options.encoding = "UTF-8"
-        targetCompatibility = JavaVersion.VERSION_11
-        sourceCompatibility = JavaVersion.VERSION_11
-    }
+tasks.withType(JavaCompile) {
+    options.encoding = "UTF-8"
+    targetCompatibility = JavaVersion.VERSION_11
+    sourceCompatibility = JavaVersion.VERSION_11
+}
 
-    java {
-        withJavadocJar()
-        withSourcesJar()
-    }
+java {
+    withJavadocJar()
+    withSourcesJar()
+}
 
-    signing {
-        sign publishing.publications
-    }
+signing {
+    sign publishing.publications
+}
 
-    test {
-        useJUnitPlatform()
+test {
+    useJUnitPlatform()
 
-        testLogging {
-            showStandardStreams = true
+    testLogging {
+        showStandardStreams = true
 
-            exceptionFormat "short"
-            events("started", "skipped", "failed")
-        }
+        exceptionFormat "short"
+        events("started", "skipped", "failed")
     }
 }

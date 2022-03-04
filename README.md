@@ -29,7 +29,7 @@
 ```java
 public class Main {
     public static void main(final String[] args) {
-        Redis redis = NioRedis.create(RedisConfig.builder(new InetSocketAddress(host, port))
+        Redis redis = Redis.create(RedisConfig.builder(new InetSocketAddress(host, port))
                         .auth(username, password)
                         .connectTimeout(1, TimeUnit.SECONDS)
                         .build())
@@ -56,14 +56,8 @@ public class Main {
 <dependencies>
     <dependency>
         <groupId>io.github.whilein</groupId>
-        <artifactId>wredis-api</artifactId>
-        <version>0.1.8</version>
-    </dependency>
-
-    <dependency>
-        <groupId>io.github.whilein</groupId>
-        <artifactId>wredis-nio-impl</artifactId>
-        <version>0.1.8</version>
+        <artifactId>wredis</artifactId>
+        <version>0.1.9</version>
     </dependency>
 </dependencies>
 ```
@@ -72,7 +66,6 @@ public class Main {
 
 ```groovy
 dependencies {
-    implementation 'io.github.whilein:wredis-api:0.1.8'
-    implementation 'io.github.whilein:wredis-nio-impl:0.1.8'
+    implementation 'io.github.whilein:wredis:0.1.9'
 }
 ```

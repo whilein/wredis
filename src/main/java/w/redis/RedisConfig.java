@@ -16,33 +16,33 @@
 
 package w.redis;
 
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
 import org.jetbrains.annotations.NotNull;
+
+import java.net.InetSocketAddress;
 
 /**
  * @author whilein
  */
-public interface RedisResponse {
+@Getter
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
+@RequiredArgsConstructor
+public final class RedisConfig {
+    InetSocketAddress address;
+    int writeBufferCapacity;
+    int readBufferCapacity;
+    int soSndBuf;
+    int soRcvBuf;
+    long connectTimeoutMillis;
+    boolean tcpNoDelay;
+    AsciiWriter asciiWriter;
+    String username;
+    String password;
 
-    void resetState();
-
-    boolean isError();
-
-    int nextArray();
-
-    @NotNull String nextString();
-
-    byte @NotNull [] nextBytes();
-
-    void skip();
-
-    void skip(int count);
-
-    int nextBytes(byte @NotNull [] bytes);
-
-    int nextBytes(byte @NotNull [] bytes, int off, int len);
-
-    int nextInt();
-
-    long nextLong();
-
+    public static @NotNull RedisConfigBuilder builder(final @NotNull InetSocketAddress address) {
+        return new RedisConfigBuilder(address);
+    }
 }

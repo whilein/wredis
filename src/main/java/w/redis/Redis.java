@@ -14,7 +14,7 @@
  *    limitations under the License.
  */
 
-package w.redis.nio;
+package w.redis;
 
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -24,13 +24,7 @@ import lombok.experimental.FieldDefaults;
 import lombok.experimental.NonFinal;
 import lombok.val;
 import org.jetbrains.annotations.NotNull;
-import w.redis.Redis;
-import w.redis.RedisAuthException;
-import w.redis.RedisConfig;
-import w.redis.RedisResponse;
-import w.redis.RedisSocketException;
 import w.redis.buffer.ReadRedisBuffer;
-import w.redis.buffer.RedisBuffers;
 import w.redis.buffer.WriteRedisBuffer;
 
 import java.io.IOException;
@@ -44,7 +38,7 @@ import java.net.Socket;
  */
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-public final class NioRedis implements Redis {
+public final class Redis {
 
     InetSocketAddress address;
 
@@ -70,30 +64,29 @@ public final class NioRedis implements Redis {
     boolean closed;
 
     @NonFinal
-    NioRedisSession session;
+    RedisSession session;
 
     public static @NotNull Redis create(
             final @NotNull RedisConfig config
     ) {
-        val redis = new NioRedis(
+        val redis = new Redis(
                 config.getAddress(),
                 config.getUsername(),
                 config.getPassword(),
                 config.getSoSndBuf(),
                 config.getSoRcvBuf(),
-                RedisBuffers.writeBuffer(config.getWriteBufferCapacity(), config.getAsciiWriter()),
-                RedisBuffers.readBuffer(config.getReadBufferCapacity()),
+                new WriteRedisBuffer(new byte[config.getWriteBufferCapacity()], 0, config.getAsciiWriter()),
+                new ReadRedisBuffer(new byte[config.getReadBufferCapacity()], 0),
                 config.getConnectTimeoutMillis(),
                 config.isTcpNoDelay()
         );
 
-        redis.response = NioRedisResponse.create(redis, redis.read);
+        redis.response = new RedisResponse(redis, redis.read);
 
         return redis;
     }
 
-    @Override
-    public @NotNull Redis connect() throws RedisSocketException {
+    private void _connect() throws RedisSocketException {
         if (session == null || !session.isConnected()) {
             if (closed) {
                 throw new IllegalStateException("Redis instance was closed");
@@ -106,7 +99,7 @@ public final class NioRedis implements Redis {
                 socket.setReceiveBufferSize(soRcvBuf);
                 socket.connect(address, (int) timeout);
 
-                session = new NioRedisSession(
+                session = new RedisSession(
                         socket,
                         socket.getInputStream(),
                         socket.getOutputStream()
@@ -134,46 +127,44 @@ public final class NioRedis implements Redis {
                 throw new RedisSocketException("Can't connect to " + address, e);
             }
         }
+    }
+
+    public @NotNull Redis connect() throws RedisSocketException {
+        _connect();
 
         return this;
     }
 
-    @Override
     public @NotNull Redis writeInt(final int number) {
         write.writeInt(number);
 
         return this;
     }
 
-    @Override
     public @NotNull Redis writeLong(final long number) {
         write.writeLong(number);
 
         return this;
     }
 
-    @Override
     public @NotNull Redis writeUTF(final @NotNull String text) {
         write.writeUTF(text);
 
         return this;
     }
 
-    @Override
     public @NotNull Redis writeAscii(final @NotNull String text) {
         write.writeAscii(text);
 
         return this;
     }
 
-    @Override
     public @NotNull Redis writeBytes(final byte @NotNull [] bytes) {
         write.writeBytes(bytes);
 
         return this;
     }
 
-    @Override
     public @NotNull Redis writeCommand(final @NotNull String name, final int arguments) {
         write.writeCommand(name, arguments);
 
@@ -189,17 +180,15 @@ public final class NioRedis implements Redis {
         buffer.setPosition(0);
     }
 
-    @Override
     @SneakyThrows
     public void flush() {
-        connect();
+        _connect();
         _flush();
     }
 
-    @Override
     @SneakyThrows
     public @NotNull RedisResponse flushAndRead() {
-        connect();
+        _connect();
 
         _flush();
         _read();
@@ -228,22 +217,19 @@ public final class NioRedis implements Redis {
         response.resetState();
     }
 
-    @Override
     @SneakyThrows
     public void readMore() {
         _read();
     }
 
-    @Override
     @SneakyThrows
     public @NotNull RedisResponse read() {
-        connect();
+        _connect();
         _read();
 
         return response;
     }
 
-    @Override
     @SneakyThrows
     public void close() {
         if (session != null) {
@@ -256,7 +242,7 @@ public final class NioRedis implements Redis {
 
     @FieldDefaults(makeFinal = true)
     @RequiredArgsConstructor
-    private static final class NioRedisSession {
+    private static final class RedisSession {
         Socket socket;
 
         InputStream input;

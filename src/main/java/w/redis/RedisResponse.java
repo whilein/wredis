@@ -14,7 +14,7 @@
  *    limitations under the License.
  */
 
-package w.redis.nio;
+package w.redis;
 
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -23,9 +23,8 @@ import lombok.experimental.FieldDefaults;
 import lombok.experimental.NonFinal;
 import lombok.val;
 import org.jetbrains.annotations.NotNull;
-import w.redis.Redis;
-import w.redis.RedisResponse;
 import w.redis.buffer.ReadRedisBuffer;
+import w.redis.buffer.RedisBuffer;
 
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
@@ -34,8 +33,8 @@ import java.util.Arrays;
  * @author whilein
  */
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-public final class NioRedisResponse implements RedisResponse {
+@RequiredArgsConstructor
+public final class RedisResponse {
 
     private static final int STATE_ARRAY = 5;
     private static final int STATE_NUMBER = 4;
@@ -47,7 +46,7 @@ public final class NioRedisResponse implements RedisResponse {
     // for error logging purposes
     @SneakyThrows
     private static String getStateName(final int state) {
-        for (val field : NioRedisResponse.class.getDeclaredFields()) {
+        for (val field : RedisResponse.class.getDeclaredFields()) {
             if (Modifier.isStatic(field.getModifiers())) {
                 if (state == field.getInt(null)) {
                     return field.getName();
@@ -65,19 +64,11 @@ public final class NioRedisResponse implements RedisResponse {
     @NonFinal
     int state;
 
-    public static @NotNull RedisResponse create(
-            final @NotNull Redis redis,
-            final @NotNull ReadRedisBuffer redisBuffer
-    ) {
-        return new NioRedisResponse(redis, redisBuffer);
-    }
-
-    @Override
     public void resetState() {
         state = STATE_UNKNOWN;
     }
 
-    private int digit(final char value) {
+    private static int digit(final char value) {
         return value >= '0' && value <= '9' ? value & 0xF : -1;
     }
 
@@ -108,27 +99,16 @@ public final class NioRedisResponse implements RedisResponse {
         return state;
     }
 
-    private void ensureReadable(final int amount) {
-        val remaining = buffer.remaining();
-
-        if (amount > remaining) {
-            redis.readMore();
-        }
-    }
-
-    @Override
     public String toString() {
         return "\"" + new String(buffer.getArray(), 0, buffer.getLength())
                 .replace("\r", "\\r")
                 .replace("\n", "\\n") + "\"";
     }
 
-    @Override
     public boolean isError() {
         return readState() == STATE_ERR;
     }
 
-    @Override
     public int nextArray() {
         val state = readState();
 
@@ -141,16 +121,21 @@ public final class NioRedisResponse implements RedisResponse {
         return readInt();
     }
 
-    @Override
     public @NotNull String nextString() {
         val state = readState();
+
+        val buffer = this.buffer;
 
         try {
             if (state == STATE_STRING) {
                 val number = readInt();
                 val offset = buffer.getPosition();
 
-                ensureReadable(number + 2); // string length + crlf
+                val remaining = buffer.remaining();
+
+                if ((number + 2) > remaining) {
+                    redis.readMore();
+                }
 
                 try {
                     return new String(buffer.getArray(), offset, number);
@@ -175,6 +160,8 @@ public final class NioRedisResponse implements RedisResponse {
 
         boolean negative = false;
         long result = 0;
+
+        val buffer = this.buffer;
 
         while (true) {
             while (buffer.hasRemaining()) {
@@ -205,6 +192,8 @@ public final class NioRedisResponse implements RedisResponse {
         boolean negative = false;
         int result = 0;
 
+        val buffer = this.buffer;
+
         while (true) {
             while (buffer.hasRemaining()) {
                 value = buffer.getNext();
@@ -231,6 +220,8 @@ public final class NioRedisResponse implements RedisResponse {
     private void skipUntilCrlf() {
         byte prev = 0, value;
 
+        val buffer = this.buffer;
+
         while (true) {
             while (buffer.hasRemaining()) {
                 value = buffer.getNext();
@@ -246,14 +237,12 @@ public final class NioRedisResponse implements RedisResponse {
         }
     }
 
-    @Override
     public void skip(final int count) {
         for (int i = 0; i < count; i++) {
             skip();
         }
     }
 
-    @Override
     public void skip() {
         val state = readState();
 
@@ -267,11 +256,12 @@ public final class NioRedisResponse implements RedisResponse {
         resetState();
     }
 
-    @Override
     public byte @NotNull [] nextBytes() {
         readState();
 
-        val start = buffer.getPosition();
+        final RedisBuffer buffer;
+
+        val start = (buffer = this.buffer).getPosition();
         skipUntilCrlf();
 
         val end = buffer.getPosition() - 2;
@@ -280,11 +270,12 @@ public final class NioRedisResponse implements RedisResponse {
         return Arrays.copyOfRange(buffer.getArray(), start, end);
     }
 
-    @Override
     public int nextBytes(final byte @NotNull [] bytes, final int off, final int len) {
         readState();
 
-        val start = buffer.getPosition();
+        final ReadRedisBuffer buffer;
+
+        val start = (buffer = this.buffer).getPosition();
 
         byte prev = 0, value;
         int read = 0;
@@ -317,12 +308,10 @@ public final class NioRedisResponse implements RedisResponse {
         return read;
     }
 
-    @Override
     public int nextBytes(final byte @NotNull [] bytes) {
         return nextBytes(bytes, 0, bytes.length);
     }
 
-    @Override
     public int nextInt() {
         val state = readState();
 
@@ -335,7 +324,6 @@ public final class NioRedisResponse implements RedisResponse {
         return readInt();
     }
 
-    @Override
     public long nextLong() {
         val state = readState();
 

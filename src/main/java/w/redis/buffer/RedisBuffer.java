@@ -16,23 +16,36 @@
 
 package w.redis.buffer;
 
-import org.jetbrains.annotations.NotNull;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.experimental.FieldDefaults;
+
+import java.util.Arrays;
 
 /**
  * @author whilein
  */
-public interface RedisBuffer {
+@Getter
+@FieldDefaults(level = AccessLevel.PROTECTED)
+@AllArgsConstructor(access = AccessLevel.PROTECTED)
+public abstract class RedisBuffer {
 
-    int getPosition();
+    byte[] array;
 
-    void setPosition(int position);
+    @Setter
+    int position;
 
-    byte @NotNull [] getArray();
+    public int getCapacity() {
+        return array.length;
+    }
 
-    int getCapacity();
+    public void resize() {
+        resize(array.length * 2);
+    }
 
-    void resize();
-
-    void resize(int capacity);
-
+    public void resize(final int to) {
+        array = Arrays.copyOf(array, to);
+    }
 }

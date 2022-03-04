@@ -16,33 +16,32 @@
 
 package w.redis.buffer;
 
-import org.jetbrains.annotations.NotNull;
+import lombok.Getter;
+import lombok.Setter;
 
 /**
  * @author whilein
  */
-public interface WriteRedisBuffer extends RedisBuffer {
+public final class ReadRedisBuffer extends RedisBuffer {
 
-    void ensure(int length);
+    public ReadRedisBuffer(final byte[] array, final int position) {
+        super(array, position);
+    }
 
-    void writeCrlf();
+    @Getter
+    @Setter
+    int length;
 
-    void writeCommand(@NotNull String command, int arguments);
+    public byte getNext() {
+        return array[position++];
+    }
 
-    void writeAscii(@NotNull String text);
+    public int remaining() {
+        return length - position;
+    }
 
-    void writeUTF(@NotNull String text);
-
-    void writeRaw(byte value);
-
-    void writeRaw(byte @NotNull [] value);
-
-    void writeEmptyString();
-
-    void writeBytes(byte @NotNull [] bytes);
-
-    void writeInt(int value);
-
-    void writeLong(long value);
+    public boolean hasRemaining() {
+        return position != length;
+    }
 
 }
