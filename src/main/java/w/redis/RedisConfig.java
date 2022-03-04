@@ -37,7 +37,6 @@ public final class RedisConfig {
     int soRcvBuf;
     long connectTimeoutMillis;
     boolean tcpNoDelay;
-    AsciiWriter asciiWriter;
     String username;
     String password;
 }

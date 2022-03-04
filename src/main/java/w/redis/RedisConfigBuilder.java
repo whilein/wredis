@@ -40,9 +40,6 @@ public final class RedisConfigBuilder {
     String password;
 
     @NonFinal
-    AsciiWriter asciiWriter;
-
-    @NonFinal
     Integer writeCapacity;
 
     @NonFinal
@@ -73,22 +70,6 @@ public final class RedisConfigBuilder {
     public RedisConfigBuilder auth(final String password) {
         this.username = null;
         this.password = password;
-
-        return this;
-    }
-
-    /**
-     * Сменить {@link AsciiWriter}.
-     * <p>
-     * По умолчанию используется {@link AsciiWriter#defaultAsciiWriter()}.
-     * <p>
-     * Смотрите описание {@link AsciiWriter}, зачем это нужно.
-     *
-     * @param asciiWriter новый {@link AsciiWriter}
-     * @return {@code this}
-     */
-    public RedisConfigBuilder asciiWriter(final AsciiWriter asciiWriter) {
-        this.asciiWriter = asciiWriter;
 
         return this;
     }
@@ -186,7 +167,6 @@ public final class RedisConfigBuilder {
                 soRcvBuf == null ? 1024 : soRcvBuf,
                 timeout,
                 tcpNoDelay,
-                asciiWriter == null ? AsciiWriter.defaultAsciiWriter() : asciiWriter,
                 username,
                 password
         );

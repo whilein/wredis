@@ -67,8 +67,7 @@ public final class Redis {
         this.password = config.getPassword();
         this.soSndBuf = config.getSoSndBuf();
         this.soRcvBuf = config.getSoRcvBuf();
-        this.write = new WriteRedisBuffer(new byte[config.getWriteBufferCapacity()],
-                0, config.getAsciiWriter());
+        this.write = new WriteRedisBuffer(new byte[config.getWriteBufferCapacity()], 0);
         this.read = new ReadRedisBuffer(new byte[config.getReadBufferCapacity()], 0);
         this.timeout = config.getConnectTimeoutMillis();
         this.tcpNoDelay = config.isTcpNoDelay();

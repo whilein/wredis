@@ -17,7 +17,7 @@
 package w.redis.buffer;
 
 import lombok.val;
-import w.redis.AsciiWriter;
+import w.redis.util.Internals;
 import w.redis.util.NumberUtils;
 
 import java.nio.charset.StandardCharsets;
@@ -27,12 +27,8 @@ import java.nio.charset.StandardCharsets;
  */
 public final class WriteRedisBuffer extends RedisBuffer {
 
-    AsciiWriter asciiWriter;
-
-    public WriteRedisBuffer(final byte[] array, final int position, final AsciiWriter asciiWriter) {
+    public WriteRedisBuffer(final byte[] array, final int position) {
         super(array, position);
-
-        this.asciiWriter = asciiWriter;
     }
 
     private void _ensure(final int len) {
@@ -70,7 +66,9 @@ public final class WriteRedisBuffer extends RedisBuffer {
     }
 
     public void _writeAscii(final String ascii) {
-        asciiWriter.write(ascii, this);
+        val bytes = Internals.getBytes(ascii);
+        _ensure(bytes.length);
+        writeRaw(bytes);
     }
 
     private int _writeLong(int position, long value) {
