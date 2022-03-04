@@ -43,7 +43,6 @@ public final class NioRedisResponse implements RedisResponse {
     private static final int STATE_OK = 2;
     private static final int STATE_ERR = 1;
     private static final int STATE_UNKNOWN = 0;
-    private static final int STATE_EOF = -1;
 
     // for error logging purposes
     @SneakyThrows
@@ -87,8 +86,8 @@ public final class NioRedisResponse implements RedisResponse {
 
     private int readState() {
         if (state == STATE_UNKNOWN) {
-            if (!buffer.hasRemaining()) {
-                return state = STATE_EOF;
+            while (!buffer.hasRemaining()) {
+                redis.readMore();
             }
 
             val value = buffer.get();
@@ -105,19 +104,6 @@ public final class NioRedisResponse implements RedisResponse {
                 case '-':
                     return state = STATE_ERR;
             }
-        }
-
-        return state;
-    }
-
-    private int ensureNext() {
-        int state = readState();
-
-        if (state == STATE_EOF) {
-            redis.readMore();
-            resetState();
-
-            state = readState();
         }
 
         return state;
@@ -145,7 +131,7 @@ public final class NioRedisResponse implements RedisResponse {
 
     @Override
     public int nextArray() {
-        val state = ensureNext();
+        val state = readState();
 
         if (state != STATE_ARRAY) {
             throw new IllegalStateException("Cannot read array at " + getStateName(state));
@@ -158,7 +144,7 @@ public final class NioRedisResponse implements RedisResponse {
 
     @Override
     public @NotNull String nextString() {
-        val state = ensureNext();
+        val state = readState();
 
         try {
             if (state == STATE_STRING) {
@@ -270,7 +256,7 @@ public final class NioRedisResponse implements RedisResponse {
 
     @Override
     public void skip() {
-        val state = ensureNext();
+        val state = readState();
 
         skipUntilCrlf();
 
@@ -284,7 +270,7 @@ public final class NioRedisResponse implements RedisResponse {
 
     @Override
     public byte @NotNull [] nextBytes() {
-        ensureNext();
+        readState();
 
         val start = buffer.position();
         skipUntilCrlf();
@@ -297,7 +283,7 @@ public final class NioRedisResponse implements RedisResponse {
 
     @Override
     public int nextBytes(final byte @NotNull [] bytes, final int off, final int len) {
-        ensureNext();
+        readState();
 
         val start = buffer.position();
 
@@ -339,7 +325,7 @@ public final class NioRedisResponse implements RedisResponse {
 
     @Override
     public int nextInt() {
-        val state = ensureNext();
+        val state = readState();
 
         if (state != STATE_NUMBER) {
             throw new IllegalStateException("Cannot read number at " + getStateName(state));
@@ -352,7 +338,7 @@ public final class NioRedisResponse implements RedisResponse {
 
     @Override
     public long nextLong() {
-        val state = ensureNext();
+        val state = readState();
 
         if (state != STATE_NUMBER) {
             throw new IllegalStateException("Cannot read number at " + getStateName(state));

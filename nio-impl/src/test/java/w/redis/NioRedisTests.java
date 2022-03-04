@@ -62,7 +62,7 @@ final class NioRedisTests {
 
     @Test
     void bufferOverflow() {
-        for (int i = 0; i < 5000; i++) {
+        for (int i = 0; i < 10000; i++) {
             redis.writeCommand("SISMEMBER", 2)
                     .writeAscii("ABCDEF1234567890")
                     .writeBytes("ABCDEF1234567890".getBytes(StandardCharsets.UTF_8));
@@ -70,7 +70,7 @@ final class NioRedisTests {
 
         val response = redis.flushAndRead();
 
-        for (int i = 0; i < 5000; i++) {
+        for (int i = 0; i < 10000; i++) {
             assertEquals(0, response.nextInt());
         }
     }

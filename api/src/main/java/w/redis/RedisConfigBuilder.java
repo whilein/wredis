@@ -51,6 +51,26 @@ public interface RedisConfigBuilder {
     @NotNull RedisConfigBuilder asciiWriter(@NotNull AsciiWriter asciiWriter);
 
     /**
+     * Сменить значение опции {@link java.net.StandardSocketOptions#SO_RCVBUF} на значение {@code value}
+     * <p>
+     * По умолчанию значение равно {@code 1024}.
+     *
+     * @param value новое значение опции
+     * @return {@code this}
+     */
+    @NotNull RedisConfigBuilder soRcvBuf(int value);
+
+    /**
+     * Сменить значение опции {@link java.net.StandardSocketOptions#SO_SNDBUF} на значение {@code value}
+     * <p>
+     * По умолчанию значение равно {@code 1024}.
+     *
+     * @param value новое значение опции
+     * @return {@code this}
+     */
+    @NotNull RedisConfigBuilder soSndBuf(int value);
+
+    /**
      * Сменить изначальный размер буфера записи
      * <p>
      * По умолчанию изначальный размер равен {@code 1024}.
@@ -116,6 +136,12 @@ public interface RedisConfigBuilder {
         Integer readCapacity;
 
         @NonFinal
+        Integer soRcvBuf;
+
+        @NonFinal
+        Integer soSndBuf;
+
+        @NonFinal
         long timeout;
 
         @NonFinal
@@ -144,6 +170,18 @@ public interface RedisConfigBuilder {
         public @NotNull RedisConfigBuilder asciiWriter(final @NotNull AsciiWriter asciiWriter) {
             this.asciiWriter = asciiWriter;
 
+            return this;
+        }
+
+        @Override
+        public @NotNull RedisConfigBuilder soRcvBuf(final int value) {
+            this.soRcvBuf = value;
+            return this;
+        }
+
+        @Override
+        public @NotNull RedisConfigBuilder soSndBuf(final int value) {
+            this.soSndBuf = value;
             return this;
         }
 
@@ -181,6 +219,8 @@ public interface RedisConfigBuilder {
                     address,
                     writeCapacity == null ? 1024 : writeCapacity,
                     readCapacity == null ? 1024 : readCapacity,
+                    soSndBuf == null ? 1024 : soSndBuf,
+                    soRcvBuf == null ? 1024 : soRcvBuf,
                     timeout,
                     tcpNoDelay,
                     asciiWriter == null ? AsciiWriter.defaultAsciiWriter() : asciiWriter,

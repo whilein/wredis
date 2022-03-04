@@ -36,6 +36,10 @@ public interface RedisConfig {
 
     int getWriteBufferCapacity();
 
+    int getSoSndBuf();
+
+    int getSoRcvBuf();
+
     long getConnectTimeoutMillis();
 
     boolean isTcpNoDelay();
@@ -56,6 +60,8 @@ public interface RedisConfig {
             final @NotNull InetSocketAddress address,
             final int writeBufferCapacity,
             final int readBufferCapacity,
+            final int soSndBuf,
+            final int soRcvBuf,
             final long connectTimeoutMillis,
             final boolean tcpNoDelay,
             final @NotNull AsciiWriter asciiWriter,
@@ -65,6 +71,7 @@ public interface RedisConfig {
         return new Default(
                 address,
                 writeBufferCapacity, readBufferCapacity,
+                soSndBuf, soRcvBuf,
                 connectTimeoutMillis, tcpNoDelay, asciiWriter,
                 username, password
         );
@@ -77,6 +84,8 @@ public interface RedisConfig {
         InetSocketAddress address;
         int writeBufferCapacity;
         int readBufferCapacity;
+        int soSndBuf;
+        int soRcvBuf;
         long connectTimeoutMillis;
         boolean tcpNoDelay;
         AsciiWriter asciiWriter;

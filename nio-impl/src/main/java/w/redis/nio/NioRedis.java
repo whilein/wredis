@@ -34,11 +34,11 @@ import w.redis.RedisSocketException;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.net.StandardSocketOptions;
+import java.net.Socket;
 import java.nio.ByteBuffer;
-import java.nio.channels.SelectionKey;
-import java.nio.channels.Selector;
-import java.nio.channels.SocketChannel;
+import java.nio.channels.Channels;
+import java.nio.channels.ReadableByteChannel;
+import java.nio.channels.WritableByteChannel;
 import java.nio.charset.StandardCharsets;
 
 /**
@@ -52,6 +52,9 @@ public final class NioRedis implements Redis {
 
     String username;
     String password;
+
+    int soSndBuf;
+    int soRcvBuf;
 
     DynWriteBuffer write;
 
@@ -78,6 +81,8 @@ public final class NioRedis implements Redis {
                 config.getAddress(),
                 config.getUsername(),
                 config.getPassword(),
+                config.getSoSndBuf(),
+                config.getSoRcvBuf(),
                 new DynWriteBuffer(ByteBuffer.allocate(config.getWriteBufferCapacity()), config.getAsciiWriter()),
                 new DynReadBuffer(ByteBuffer.allocate(config.getReadBufferCapacity())),
                 config.getConnectTimeoutMillis(),
@@ -89,31 +94,6 @@ public final class NioRedis implements Redis {
         return redis;
     }
 
-    private static void awaitReadable(final Selector selector) throws IOException {
-        selector.select(0);
-
-        val readyKeys = selector.selectedKeys();
-        readyKeys.removeIf(SelectionKey::isReadable);
-    }
-
-    private static SelectionKey awaitConnectable(final Selector selector, final long timeout) throws IOException {
-        selector.select(timeout);
-
-        val readyKeys = selector.selectedKeys().iterator();
-
-        while (readyKeys.hasNext()) {
-            val key = readyKeys.next();
-
-            if (key.isConnectable()) {
-                readyKeys.remove();
-
-                return key;
-            }
-        }
-
-        return null;
-    }
-
     @Override
     public @NotNull Redis connect() throws RedisSocketException {
         if (session == null || !session.isConnected()) {
@@ -122,44 +102,35 @@ public final class NioRedis implements Redis {
             }
 
             try {
-                val channel = SocketChannel.open();
-                channel.setOption(StandardSocketOptions.TCP_NODELAY, tcpNoDelay);
-                //channel.setOption(StandardSocketOptions.SO_RCVBUF, 1);
-                channel.configureBlocking(false);
+                val socket = new Socket();
+                socket.setTcpNoDelay(tcpNoDelay);
+                socket.setSendBufferSize(soSndBuf);
+                socket.setReceiveBufferSize(soRcvBuf);
+                socket.connect(address, (int) timeout);
 
-                val selector = Selector.open();
-                channel.register(selector, SelectionKey.OP_READ, null);
-                channel.register(selector, SelectionKey.OP_CONNECT, null);
+                session = new NioRedisSession(
+                        socket,
+                        Channels.newChannel(socket.getInputStream()),
+                        Channels.newChannel(socket.getOutputStream())
+                );
 
-                channel.connect(address);
-
-                val key = awaitConnectable(selector, timeout);
-
-                if (key != null && channel.finishConnect()) {
-                    key.interestOps(SelectionKey.OP_READ);
-
-                    session = new NioRedisSession(channel, selector);
-
-                    if (password != null) {
-                        if (username != null) {
-                            writeCommand("AUTH", 2)
-                                    .writeUTF(username)
-                                    .writeUTF(password);
-                        } else {
-                            writeCommand("AUTH", 1)
-                                    .writeUTF(password);
-                        }
-
-                        val response = flushAndRead();
-
-                        if (response.isError()) {
-                            session = null;
-
-                            throw new RedisAuthException(response.nextString());
-                        }
+                if (password != null) {
+                    if (username != null) {
+                        writeCommand("AUTH", 2)
+                                .writeUTF(username)
+                                .writeUTF(password);
+                    } else {
+                        writeCommand("AUTH", 1)
+                                .writeUTF(password);
                     }
-                } else {
-                    throw new RedisSocketException("Can't connect to " + address);
+
+                    val response = flushAndRead();
+
+                    if (response.isError()) {
+                        session = null;
+
+                        throw new RedisAuthException(response.nextString());
+                    }
                 }
             } catch (final IOException e) {
                 throw new RedisSocketException("Can't connect to " + address, e);
@@ -222,8 +193,8 @@ public final class NioRedis implements Redis {
         val buffer = write.buffer;
         buffer.flip();
 
-        val channel = session.channel;
-        channel.write(buffer);
+        val session = this.session;
+        session.output.write(buffer);
 
         buffer.clear();
     }
@@ -247,14 +218,12 @@ public final class NioRedis implements Redis {
     }
 
     private void _read() throws IOException {
-        awaitReadable(session.selector);
-
         ByteBuffer buffer = read.buffer;
         buffer.clear();
 
-        val channel = session.channel;
+        val input = session.input;
 
-        while (channel.read(buffer) > 0) {
+        if (input.read(buffer) > 0) {
             if (buffer.position() == buffer.capacity()) {
                 buffer = read.resize();
             }
@@ -268,13 +237,14 @@ public final class NioRedis implements Redis {
     @Override
     @SneakyThrows
     public void readMore() {
-        connect();
         _read();
     }
 
     @Override
+    @SneakyThrows
     public @NotNull RedisResponse read() {
-        readMore();
+        connect();
+        _read();
 
         return response;
     }
@@ -285,8 +255,7 @@ public final class NioRedis implements Redis {
         if (session != null) {
             closed = true;
 
-            session.channel.close();
-            session.selector.close();
+            session.socket.close();
             session = null;
         }
     }
@@ -513,11 +482,13 @@ public final class NioRedis implements Redis {
     @FieldDefaults(makeFinal = true)
     @RequiredArgsConstructor
     private static final class NioRedisSession {
-        SocketChannel channel;
-        Selector selector;
+        Socket socket;
+
+        ReadableByteChannel input;
+        WritableByteChannel output;
 
         public boolean isConnected() {
-            return channel.isConnected();
+            return socket.isConnected();
         }
     }
 
