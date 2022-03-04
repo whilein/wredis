@@ -1,7 +1,1 @@
 rootProject.name = 'wredis'
-
-include ':wredis-api'
-include ':wredis-nio-impl'
-
-project(":wredis-api").projectDir = new File(rootDir, "api")
-project(":wredis-nio-impl").projectDir = new File(rootDir, "nio-impl")
