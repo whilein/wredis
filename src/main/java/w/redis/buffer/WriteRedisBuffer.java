@@ -65,7 +65,7 @@ public final class WriteRedisBuffer extends RedisBuffer {
         _writeCrlf();
     }
 
-    public void _writeAscii(final String ascii) {
+    private void _writeAscii(final String ascii) {
         val bytes = Internals.getBytes(ascii);
         _ensure(bytes.length);
         writeRaw(bytes);

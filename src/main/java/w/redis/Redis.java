@@ -97,18 +97,26 @@ public final class Redis implements AutoCloseable {
                 input = socket.getInputStream();
 
                 if (password != null) {
+                    // Может произойти такая ситуация, что кто-то уже записал что-то в буффер до коннекта
+                    // поэтому нужно создать отдельный буффер..
+
+                    val authBuffer = new WriteRedisBuffer(new byte[64], 0);
+
                     if (username != null) {
-                        writeCommand("AUTH", 2)
-                                .writeUTF(username)
-                                .writeUTF(password);
+                        authBuffer.writeCommand("AUTH", 2);
+                        authBuffer.writeUTF(username);
+                        authBuffer.writeUTF(password);
                     } else {
-                        writeCommand("AUTH", 1)
-                                .writeUTF(password);
+                        authBuffer.writeCommand("AUTH", 1);
+                        authBuffer.writeUTF(password);
                     }
+
+                    _flush(authBuffer);
+                    _read();
 
                     final RedisResponse response;
 
-                    if ((response = flushAndRead()).isError()) {
+                    if ((response = this.response).isError()) {
                         socket = null;
                         output = null;
                         input = null;
@@ -165,10 +173,11 @@ public final class Redis implements AutoCloseable {
     }
 
     private void _flush() throws IOException {
-        val buffer = write;
+        _flush(write);
+    }
 
+    private void _flush(final WriteRedisBuffer buffer) throws IOException {
         output.write(buffer.getArray(), 0, buffer.getPosition());
-
         buffer.setPosition(0);
     }
 
