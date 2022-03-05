@@ -42,8 +42,8 @@ final class RedisTests {
         try {
             redis = new Redis(new RedisConfigBuilder(new InetSocketAddress("localhost", 6379))
                     .connectTimeout(1, TimeUnit.SECONDS)
-                    .build())
-                    .connect();
+                    .auth("default", "1234567890")
+                    .build());
 
             connected = true;
         } catch (final Exception e) {
@@ -55,8 +55,9 @@ final class RedisTests {
 
     @Test
     void readString() {
-        val response = redis.writeCommand("PING", 0).flushAndRead();
-        assertEquals("PONG", response.nextString());
+        redis.writeCommand("PING", 0).flushAndRead();
+
+        assertEquals("PONG", redis.nextString());
     }
 
     @Test
@@ -67,16 +68,16 @@ final class RedisTests {
                     .writeBytes("ABCDEF1234567890".getBytes(StandardCharsets.UTF_8));
         }
 
-        val response = redis.flushAndRead();
+        redis.flushAndRead();
 
         for (int i = 0; i < 1000; i++) {
-            assertEquals(0, response.nextInt());
+            assertEquals(0, redis.nextInt());
         }
     }
 
     @Test
     void longArgument() {
-        val response = redis
+        redis
                 .writeCommand("SET", 2)
                 .writeAscii("COUNTER")
                 .writeAscii("15")
@@ -94,15 +95,15 @@ final class RedisTests {
 
                 .flushAndRead();
 
-        assertEquals("OK", response.nextString()); // SET
-        assertEquals(5, response.nextLong()); // DECRBY
-        assertEquals(15, response.nextLong()); // DECRBY
-        assertEquals(1, response.nextInt()); // DEL
+        assertEquals("OK", redis.nextString()); // SET
+        assertEquals(5, redis.nextLong()); // DECRBY
+        assertEquals(15, redis.nextLong()); // DECRBY
+        assertEquals(1, redis.nextInt()); // DEL
     }
 
     @Test
     void intArgument() {
-        val response = redis
+        redis
                 .writeCommand("SET", 2)
                 .writeAscii("COUNTER")
                 .writeAscii("5")
@@ -120,10 +121,10 @@ final class RedisTests {
 
                 .flushAndRead();
 
-        assertEquals("OK", response.nextString()); // SET
-        assertEquals(15, response.nextInt()); // INCRBY
-        assertEquals(5, response.nextInt()); // INCRBY
-        assertEquals(1, response.nextInt()); // DEL
+        assertEquals("OK", redis.nextString()); // SET
+        assertEquals(15, redis.nextInt()); // INCRBY
+        assertEquals(5, redis.nextInt()); // INCRBY
+        assertEquals(1, redis.nextInt()); // DEL
     }
 
     @Test
@@ -146,15 +147,15 @@ final class RedisTests {
 
         redis
                 .writeCommand("SMEMBERS", 1)
-                .writeAscii("VALUES");
+                .writeAscii("VALUES")
+                .flushAndRead();
 
-        val response = redis.flushAndRead();
-        response.skip(11); // del + 10 sadd
+        redis.skip(11); // del + 10 sadd
 
         val result = new HashSet<String>();
 
-        for (int i = 0, j = response.nextArray(); i < j; i++) {
-            result.add(response.nextString());
+        for (int i = 0, j = redis.nextArray(); i < j; i++) {
+            result.add(redis.nextString());
         }
 
         assertEquals(10, result.size());
@@ -163,7 +164,7 @@ final class RedisTests {
 
     @Test
     void readNumber() {
-        val response = redis
+        redis
                 .writeCommand("DEL", 1)
                 .writeAscii("VALUES")
 
@@ -178,10 +179,10 @@ final class RedisTests {
                 .writeAscii("VALUES")
                 .flushAndRead();
 
-        response.skip(); // del
-        assertEquals(0, response.nextInt());
-        response.skip(); // sadd
-        assertEquals(1, response.nextInt());
+        redis.skip(); // del
+        assertEquals(0, redis.nextInt());
+        redis.skip(); // sadd
+        assertEquals(1, redis.nextInt());
     }
 
 }

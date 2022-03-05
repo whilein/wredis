@@ -35,8 +35,9 @@ public class Main {
                         .build())
                 .connect();
 
-        RedisResponse response = redis.command("PING").flushAndRead();
-        boolean pong = "PONG".equals(response.nextString());
+        redis.command("PING").flushAndRead();
+        
+        boolean pong = "PONG".equals(redis.nextString());
     }
 }
 ```
