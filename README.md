@@ -58,7 +58,7 @@ public class Main {
     <dependency>
         <groupId>io.github.whilein</groupId>
         <artifactId>wredis</artifactId>
-        <version>0.1.10</version>
+        <version>0.1.11</version>
     </dependency>
 </dependencies>
 ```
@@ -67,7 +67,7 @@ public class Main {
 
 ```groovy
 dependencies {
-    implementation 'io.github.whilein:wredis:0.1.10'
+    implementation 'io.github.whilein:wredis:0.1.11'
 }
 ```
 <!-- @formatter:on  -->
