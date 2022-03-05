@@ -17,20 +17,24 @@
 package w.redis;
 
 import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.Setter;
 import lombok.SneakyThrows;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.NonFinal;
 import lombok.val;
-import w.redis.buffer.ReadRedisBuffer;
-import w.redis.buffer.RedisBuffer;
-import w.redis.buffer.WriteRedisBuffer;
+import sun.misc.Unsafe;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.lang.reflect.Modifier;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 /**
@@ -46,6 +50,31 @@ public final class Redis implements AutoCloseable {
     private static final int STATE_ERR = 1;
     private static final int STATE_UNKNOWN = 0;
 
+    private static final VarHandle VH__STRING_VALUE;
+
+    static {
+        final MethodHandles.Lookup implLookup;
+
+        // region IMPL_LOOKUP
+        try {
+            val theUnsafeField = Unsafe.class.getDeclaredField("theUnsafe");
+            theUnsafeField.setAccessible(true);
+
+            val theUnsafe = (Unsafe) theUnsafeField.get(null);
+
+            val implLookupField = MethodHandles.Lookup.class.getDeclaredField("IMPL_LOOKUP");
+
+            implLookup = (MethodHandles.Lookup) theUnsafe.getObject(
+                    theUnsafe.staticFieldBase(implLookupField),
+                    theUnsafe.staticFieldOffset(implLookupField)
+            );
+
+            VH__STRING_VALUE = implLookup.findVarHandle(String.class, "value", byte[].class);
+        } catch (final Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     // for error logging purposes
     @SneakyThrows
     private static String getStateName(final int state) {
@@ -58,6 +87,122 @@ public final class Redis implements AutoCloseable {
         }
 
         return "";
+    }
+
+    private static int getLongLength(final long value) {
+        if (value < 1000000000) {
+            if (value < 100000) {
+                if (value < 100) {
+                    if (value < 10) {
+                        return 1;
+                    } else {
+                        return 2;
+                    }
+                } else {
+                    if (value < 1000) {
+                        return 3;
+                    } else {
+                        if (value < 10000) {
+                            return 4;
+                        } else {
+                            return 5;
+                        }
+                    }
+                }
+            } else {
+                if (value < 10000000) {
+                    if (value < 1000000) {
+                        return 6;
+                    } else {
+                        return 7;
+                    }
+                } else {
+                    if (value < 100000000) {
+                        return 8;
+                    } else {
+                        return 9;
+                    }
+                }
+            }
+        } else {
+            if (value < 100000000000000L) {
+                if (value < 100000000000L) {
+                    if (value < 10000000000L) {
+                        return 10;
+                    } else {
+                        return 11;
+                    }
+                } else {
+                    if (value < 1000000000000L) {
+                        return 12;
+                    } else {
+                        if (value < 10000000000000L) {
+                            return 13;
+                        } else {
+                            return 14;
+                        }
+                    }
+                }
+            } else {
+                if (value < 10000000000000000L) {
+                    if (value < 1000000000000000L) {
+                        return 15;
+                    } else {
+                        return 16;
+                    }
+                } else {
+                    if (value < 100000000000000000L) {
+                        return 17;
+                    } else {
+                        if (value < 1000000000000000000L) {
+                            return 18;
+                        } else {
+                            return 19;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private static int getIntLength(final int value) {
+        if (value < 100000) {
+            if (value < 100) {
+                if (value < 10) {
+                    return 1;
+                } else {
+                    return 2;
+                }
+            } else {
+                if (value < 1000) {
+                    return 3;
+                } else {
+                    if (value < 10000) {
+                        return 4;
+                    } else {
+                        return 5;
+                    }
+                }
+            }
+        } else {
+            if (value < 10000000) {
+                if (value < 1000000) {
+                    return 6;
+                } else {
+                    return 7;
+                }
+            } else {
+                if (value < 100000000) {
+                    return 8;
+                } else {
+                    if (value < 1000000000) {
+                        return 9;
+                    } else {
+                        return 10;
+                    }
+                }
+            }
+        }
     }
 
     InetSocketAddress address;
@@ -540,6 +685,251 @@ public final class Redis implements AutoCloseable {
         resetState();
 
         return readLong();
+    }
+
+    @Getter
+    @FieldDefaults(level = AccessLevel.PROTECTED)
+    @AllArgsConstructor(access = AccessLevel.PROTECTED)
+    private static abstract class RedisBuffer {
+
+        byte[] array;
+
+        @Setter
+        int position;
+
+        public int getCapacity() {
+            return array.length;
+        }
+
+        public void resize() {
+            resize(array.length * 2);
+        }
+
+        public void resize(final int to) {
+            array = Arrays.copyOf(array, to);
+        }
+    }
+
+    private static final class ReadRedisBuffer extends RedisBuffer {
+
+        public ReadRedisBuffer(final byte[] array, final int position) {
+            super(array, position);
+        }
+
+        @Getter
+        @Setter
+        int length;
+
+        public byte getNext() {
+            return array[position++];
+        }
+
+        public int remaining() {
+            return length - position;
+        }
+
+        public boolean hasRemaining() {
+            return position != length;
+        }
+
+    }
+
+    private static final class WriteRedisBuffer extends RedisBuffer {
+
+        public WriteRedisBuffer(final byte[] array, final int position) {
+            super(array, position);
+        }
+
+        private void _ensure(final int len) {
+            final int requiredCapacity = position + len;
+            final int currentCapacity = getCapacity();
+
+            if (requiredCapacity > currentCapacity) {
+                resize(Math.max(requiredCapacity, currentCapacity * 2));
+            }
+        }
+
+        public void writeRaw(final byte value) {
+            array[position++] = value;
+        }
+
+        public void writeRaw(final byte[] value) {
+            val length = value.length;
+            System.arraycopy(value, 0, array, position, length);
+            this.position += length;
+        }
+
+        private void _writeCrlf() {
+            writeRaw((byte) '\r');
+            writeRaw((byte) '\n');
+        }
+
+        public void writeCommand(final String command, final int arguments) {
+            _writeLength('*', arguments + 1);
+            val commandLength = command.length();
+            _writeLength('$', commandLength);
+
+            _ensure(commandLength + 2);
+            _writeAscii(command);
+            _writeCrlf();
+        }
+
+        private void _writeAscii(final String ascii) {
+            val bytes = (byte[]) VH__STRING_VALUE.get(ascii);
+
+            _ensure(bytes.length);
+            writeRaw(bytes);
+        }
+
+        private int _writeLong(int position, long value) {
+            this.position = position;
+
+            while (value > 0) {
+                array[--position] = (byte) ((byte) (value % 10) + '0');
+                value /= 10;
+            }
+
+            return position;
+        }
+
+
+        private int _writeInt(int position, int value) {
+            this.position = position;
+
+            while (value > 0) {
+                array[--position] = (byte) ((byte) (value % 10) + '0');
+                value /= 10;
+            }
+
+            return position;
+        }
+
+        private void _writeLength(final char prefix, final int length) {
+            if (length < 10) {
+                _ensure(4);
+                writeRaw((byte) prefix);
+                writeRaw((byte) ('0' + length));
+                _writeCrlf();
+                return;
+            }
+
+            val lengthOfNumber = getIntLength(length);
+
+            // 3 байта на префикс и crlf, остальное на число
+            _ensure(3 + lengthOfNumber);
+            writeRaw((byte) prefix);
+
+            val position = this.position + lengthOfNumber;
+            _writeInt(position, length);
+            _writeCrlf();
+        }
+
+        public void writeInt(final int rawNumber) {
+            final int number;
+            final int length;
+
+            final boolean negative;
+
+            if ((negative = rawNumber < 0)) {
+                length = getIntLength(number = -rawNumber) + 1;
+            } else {
+                length = getIntLength(number = rawNumber);
+            }
+
+            _writeLength('$', length);
+
+            _ensure(length + 2);
+
+            val position = this.position + length;
+            val lastPosition = _writeInt(position, number);
+
+            if (negative) {
+                array[lastPosition - 1] = (byte) '-';
+            }
+
+            _writeCrlf();
+        }
+
+        public void writeLong(final long rawNumber) {
+            final long number;
+            final int length;
+
+            final boolean negative;
+
+            if ((negative = rawNumber < 0)) {
+                length = getLongLength(number = -rawNumber) + 1;
+            } else {
+                length = getLongLength(number = rawNumber);
+            }
+
+            _writeLength('$', length);
+
+            _ensure(length + 2);
+
+            val position = this.position + length;
+            val lastPosition = _writeLong(position, number);
+
+            if (negative) {
+                array[lastPosition - 1] = (byte) '-';
+            }
+
+            _writeCrlf();
+        }
+
+        private void _writeEmptyString() {
+            _ensure(4);
+
+            writeRaw((byte) '$');
+            writeRaw((byte) '0');
+            _writeCrlf();
+        }
+
+        public void writeBytes(final byte[] bytes) {
+            val blobLength = bytes.length;
+
+            if (blobLength == 0) {
+                _writeEmptyString();
+                return;
+            }
+
+            _writeLength('$', blobLength);
+
+            _ensure(blobLength + 2);
+            writeRaw(bytes);
+            _writeCrlf();
+        }
+
+        public void writeAscii(final String text) {
+            if (text.length() == 0) {
+                _writeEmptyString();
+                return;
+            }
+
+            val textLength = text.length();
+            _writeLength('$', textLength);
+
+            _ensure(textLength + 2);
+            _writeAscii(text);
+
+            _writeCrlf();
+        }
+
+        public void writeUTF(final String text) {
+            if (text.length() == 0) {
+                _writeEmptyString();
+                return;
+            }
+
+            val bytes = text.getBytes(StandardCharsets.UTF_8);
+
+            val textLength = bytes.length;
+            _writeLength('$', textLength);
+
+            _ensure(textLength + 2);
+            writeRaw(bytes);
+
+            _writeCrlf();
+        }
     }
 
 }
