@@ -194,11 +194,10 @@ public final class Redis {
         readBuffer.setLength(0);
 
         val array = readBuffer.getArray();
-        val arrayOffset = readBuffer.getPosition();
 
         final int read;
 
-        if ((read = input.read(array, arrayOffset, array.length - arrayOffset)) == readBuffer.getCapacity()) {
+        if ((read = input.read(array, 0, array.length)) == readBuffer.getCapacity()) {
             readBuffer.resize();
         }
 
