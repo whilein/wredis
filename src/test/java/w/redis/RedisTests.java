@@ -45,6 +45,9 @@ final class RedisTests {
                     .auth("default", "1234567890")
                     .build());
 
+            // чтобы проверить, запущен ли редис сервер или нет
+            redis.connect();
+
             connected = true;
         } catch (final Exception e) {
             connected = false;

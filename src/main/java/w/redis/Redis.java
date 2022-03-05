@@ -300,10 +300,8 @@ public final class Redis implements AutoCloseable {
         }
     }
 
-    public Redis connect() throws RedisSocketException {
+    public void connect() throws RedisSocketException {
         _connect();
-
-        return this;
     }
 
     public Redis writeInt(final int number) {
