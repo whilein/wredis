@@ -40,7 +40,7 @@ final class RedisTests {
         boolean connected;
 
         try {
-            redis = new Redis(new RedisConfigBuilder(new InetSocketAddress("localhost", 6379))
+            redis = new Redis(new Redis.Config.Builder(new InetSocketAddress("localhost", 6379))
                     .connectTimeout(1, TimeUnit.SECONDS)
                     .auth("default", "1234567890")
                     .build());

@@ -19,6 +19,7 @@ package w.redis;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.SneakyThrows;
 import lombok.experimental.FieldDefaults;
@@ -34,8 +35,10 @@ import java.lang.invoke.VarHandle;
 import java.lang.reflect.Modifier;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author whilein
@@ -233,7 +236,15 @@ public final class Redis implements AutoCloseable {
     @NonFinal
     OutputStream output;
 
-    public Redis(final RedisConfig config) {
+    @NonFinal
+    int state;
+
+    /**
+     * Конструктор редис клиента.
+     *
+     * @param config Конфиг редис клиента
+     */
+    public Redis(final Config config) {
         this.address = config.getAddress();
         this.username = config.getUsername();
         this.password = config.getPassword();
@@ -245,7 +256,11 @@ public final class Redis implements AutoCloseable {
         this.tcpNoDelay = config.isTcpNoDelay();
     }
 
-    private void _connect() throws RedisSocketException {
+    private void _resetState() {
+        state = STATE_UNKNOWN;
+    }
+
+    private void _connect() throws SocketException, AuthException {
         if (socket == null || !socket.isConnected()) {
             if (closed) {
                 throw new IllegalStateException("Redis instance was closed");
@@ -291,49 +306,113 @@ public final class Redis implements AutoCloseable {
                         output = null;
                         input = null;
 
-                        throw new RedisAuthException(nextString());
+                        throw new AuthException(nextString());
                     }
                 }
             } catch (final IOException e) {
-                throw new RedisSocketException("Can't connect to " + address, e);
+                throw new SocketException("Can't connect to " + address, e);
             }
         }
     }
 
-    public void connect() throws RedisSocketException {
+    /**
+     * Подключиться к Redis серверу.
+     * <p>
+     * Подключение происходит автоматически при {@link #flush()} и {@link #read()},
+     * но вы можете подключиться заранее. Например, чтобы проверить, есть ли доступ к
+     * Redis серверу.
+     *
+     * @throws SocketException Выбрасывается, если доступа к Redis серверу нет
+     * @throws AuthException   Выбрасывается, если не удалось авторизоваться с Redis сервером
+     */
+    public void connect() throws SocketException, AuthException {
         _connect();
     }
 
+    /**
+     * Записать 32-битное число в буффер записи.
+     * <p>
+     * Это не спровоцирует подключение к Redis серверу, чтобы отправить данные,
+     * воспользуйтесь методом {@link #flush()} или {@link #flushAndRead()}
+     *
+     * @param number Число
+     * @return Текущий экземпляр редис клиента, проще - {@code this}
+     */
     public Redis writeInt(final int number) {
         write.writeInt(number);
 
         return this;
     }
 
+    /**
+     * Записать 64-битное число в буффер записи.
+     * <p>
+     * Это не спровоцирует подключение к Redis серверу, чтобы отправить данные,
+     * воспользуйтесь методом {@link #flush()} или {@link #flushAndRead()}
+     *
+     * @param number Число
+     * @return Текущий экземпляр редис клиента, проще - {@code this}
+     */
     public Redis writeLong(final long number) {
         write.writeLong(number);
 
         return this;
     }
 
+    /**
+     * Записать {@code UTF} в буффер записи.
+     * <p>
+     * Этот метод получает из строки байты через метод {@link String#getBytes(Charset)} и записывает
+     * их в буффер записи.
+     * <p>
+     * Если вы уверены в том, что в строке используются только символы из {@code US_ASCII}, вы
+     * можете воспользоваться методом {@link #writeAscii(String)}, поскольку он не создаёт временный массив байтов.
+     *
+     * @param text Текст
+     * @return Текущий экземпляр редис клиента, проще - {@code this}
+     */
     public Redis writeUTF(final String text) {
         write.writeUTF(text);
 
         return this;
     }
 
+    /**
+     * Записать {@code ASCII} в буффер записи.
+     * <p>
+     * Этот метод получает массив байтов из строки через {@link VarHandle}, что не создаёт временный массив байтов.
+     * <p>
+     * Если в вашей строке содержатся символы, которых нет в {@code US_ASCII}, например русский текст и т.д, то следует
+     * воспользоваться методом {@link #writeUTF(String)}.
+     *
+     * @param text Текст
+     * @return Текущий экземпляр редис клиента, проще - {@code this}
+     */
     public Redis writeAscii(final String text) {
         write.writeAscii(text);
 
         return this;
     }
 
+    /**
+     * Записать байты в буффер записи.
+     *
+     * @param bytes Массив байтов
+     * @return Текущий экземпляр редис клиента, проще - {@code this}
+     */
     public Redis writeBytes(final byte[] bytes) {
         write.writeBytes(bytes);
 
         return this;
     }
 
+    /**
+     * Записать команду в буффер записи.
+     *
+     * @param name      Название команды
+     * @param arguments Количество аргументов команды, которые будут записаны далее
+     * @return Текущий экземпляр редис клиента, проще - {@code this}
+     */
     public Redis writeCommand(final String name, final int arguments) {
         write.writeCommand(name, arguments);
 
@@ -349,12 +428,25 @@ public final class Redis implements AutoCloseable {
         buffer.setPosition(0);
     }
 
+    /**
+     * Отправить буффер записи на Redis сервер.
+     * <p>
+     * Если подключение не открыто, это откроет новое подключение.
+     */
     @SneakyThrows
     public void flush() {
         _connect();
         _flush();
     }
 
+    /**
+     * Отправить буффер записи на Redis сервер и прочитать ответ в буффер чтения.
+     * <p>
+     * Если подключение не открыто, это откроет новое подключение.
+     * <p>
+     * Буффером чтения вы можете воспользоваться при помощи методов {@link #nextInt()}, {@link #nextLong()},
+     * {@link #nextArray()}, {@link #nextString()} и т.д.
+     */
     @SneakyThrows
     public void flushAndRead() {
         _connect();
@@ -380,12 +472,25 @@ public final class Redis implements AutoCloseable {
         state = STATE_UNKNOWN;
     }
 
+    /**
+     * Прочитать ответ Redis сервера в буффер чтения.
+     * <p>
+     * Если подключение не открыто, это откроет новое подключение.
+     * <p>
+     * Буффером чтения вы можете воспользоваться при помощи методов {@link #nextInt()}, {@link #nextLong()},
+     * {@link #nextArray()}, {@link #nextString()} и т.д.
+     */
     @SneakyThrows
     public void read() {
         _connect();
         _read();
     }
 
+    /**
+     * Закрыть Redis клиент.
+     * <p>
+     * Это полностью закроет Redis клиент без возможности открыть подключение заново.
+     */
     @Override
     @SneakyThrows
     public void close() {
@@ -400,19 +505,12 @@ public final class Redis implements AutoCloseable {
         }
     }
 
-    @NonFinal
-    int state;
-
-    public void resetState() {
-        state = STATE_UNKNOWN;
-    }
-
     private static int digit(final char value) {
         return value >= '0' && value <= '9' ? value & 0xF : -1;
     }
 
     @SneakyThrows
-    private int readState() {
+    private int _readState() {
         if (state == STATE_UNKNOWN) {
             final ReadRedisBuffer buffer;
 
@@ -443,38 +541,47 @@ public final class Redis implements AutoCloseable {
 
     @Override
     public String toString() {
-        val buffer = this.read;
-
-        return "\"" + new String(buffer.getArray(), 0, buffer.getLength())
-                .replace("\r", "\\r")
-                .replace("\n", "\\n") + "\"";
+        return "Redis[address=" + address + "]";
     }
 
     public boolean isError() {
-        return readState() == STATE_ERR;
+        return _readState() == STATE_ERR;
     }
 
+    /**
+     * Прочитать из буффера чтения массив.
+     * <p>
+     * Вы получаете размер массива, далее в цикле вы можете сделать
+     * {@link #nextString()}, {@link #nextInt()} и т.д
+     *
+     * @return Размер массива.
+     */
     public int nextArray() {
-        val state = readState();
+        val state = _readState();
 
         if (state != STATE_ARRAY) {
             throw new IllegalStateException("Cannot read array at " + getStateName(state));
         }
 
-        resetState();
+        _resetState();
 
-        return readInt();
+        return _readInt();
     }
 
+    /**
+     * Прочитать строку из буффера чтения.
+     *
+     * @return Строка
+     */
     @SneakyThrows
     public String nextString() {
-        val state = readState();
+        val state = _readState();
 
         val buffer = this.read;
 
         try {
             if (state == STATE_STRING) {
-                val number = readInt();
+                val number = _readInt();
                 val offset = buffer.getPosition();
 
                 val remaining = buffer.remaining();
@@ -490,19 +597,19 @@ public final class Redis implements AutoCloseable {
                 }
             } else {
                 val start = buffer.getPosition();
-                skipUntilCrlf();
+                _skipUntilCrlf();
 
                 val end = buffer.getPosition() - 2;
 
                 return new String(buffer.getArray(), start, end - start);
             }
         } finally {
-            resetState();
+            _resetState();
         }
     }
 
     @SneakyThrows
-    private long readLong() {
+    private long _readLong() {
         byte prev = 0, value;
 
         boolean negative = false;
@@ -534,7 +641,7 @@ public final class Redis implements AutoCloseable {
     }
 
     @SneakyThrows
-    private int readInt() {
+    private int _readInt() {
         byte prev = 0, value;
 
         boolean negative = false;
@@ -566,7 +673,7 @@ public final class Redis implements AutoCloseable {
     }
 
     @SneakyThrows
-    private void skipUntilCrlf() {
+    private void _skipUntilCrlf() {
         byte prev = 0;
 
         val buffer = this.read;
@@ -586,42 +693,63 @@ public final class Redis implements AutoCloseable {
         }
     }
 
+    /**
+     * Пропустить следующие {@code count} элементов из буффера чтения.
+     *
+     * @param count Количество элементов, которые нужно пропустить
+     */
     public void skip(final int count) {
         for (int i = 0; i < count; i++) {
             skip();
         }
     }
 
+    /**
+     * Пропустить следующий элемент из буффера чтения.
+     */
     public void skip() {
-        val state = readState();
+        val state = _readState();
 
-        skipUntilCrlf();
+        _skipUntilCrlf();
 
         // prefixed with number
         if (state == STATE_STRING || state == STATE_ARRAY) {
-            skipUntilCrlf();
+            _skipUntilCrlf();
         }
 
-        resetState();
+        _resetState();
     }
 
+    /**
+     * Прочитать массив байт из буффера чтения.
+     *
+     * @return Массив байт
+     */
     public byte[] nextBytes() {
-        readState();
+        _readState();
 
         final RedisBuffer buffer;
 
         val start = (buffer = this.read).getPosition();
-        skipUntilCrlf();
+        _skipUntilCrlf();
 
         val end = buffer.getPosition() - 2;
-        resetState();
+        _resetState();
 
         return Arrays.copyOfRange(buffer.getArray(), start, end);
     }
 
+    /**
+     * Прочитать массив байт из буффера чтения.
+     *
+     * @param bytes Вывод
+     * @param off   Сдвиг вывода
+     * @param len   Размер вывода
+     * @return Байт прочитано
+     */
     @SneakyThrows
     public int nextBytes(final byte[] bytes, final int off, final int len) {
-        readState();
+        _readState();
 
         final ReadRedisBuffer buffer;
 
@@ -643,7 +771,7 @@ public final class Redis implements AutoCloseable {
 
             if (value == '\n' && prev == '\r') {
                 read--; // remove \r from length
-                resetState();
+                _resetState();
 
                 break;
             }
@@ -657,32 +785,48 @@ public final class Redis implements AutoCloseable {
         return read;
     }
 
+    /**
+     * Прочитать массив байт из буффера чтения.
+     *
+     * @param bytes Вывод
+     * @return Байт прочитано
+     */
     public int nextBytes(final byte[] bytes) {
         return nextBytes(bytes, 0, bytes.length);
     }
 
+    /**
+     * Прочитать 32-битное число из буффера чтения.
+     *
+     * @return число
+     */
     public int nextInt() {
-        val state = readState();
+        val state = _readState();
 
         if (state != STATE_NUMBER) {
             throw new IllegalStateException("Cannot read number at " + getStateName(state));
         }
 
-        resetState();
+        _resetState();
 
-        return readInt();
+        return _readInt();
     }
 
+    /**
+     * Прочитать 64-битное число из буффера чтения.
+     *
+     * @return число
+     */
     public long nextLong() {
-        val state = readState();
+        val state = _readState();
 
         if (state != STATE_NUMBER) {
             throw new IllegalStateException("Cannot read number at " + getStateName(state));
         }
 
-        resetState();
+        _resetState();
 
-        return readLong();
+        return _readLong();
     }
 
     @Getter
@@ -927,6 +1071,189 @@ public final class Redis implements AutoCloseable {
             writeRaw(bytes);
 
             _writeCrlf();
+        }
+    }
+
+    @Getter
+    @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
+    @RequiredArgsConstructor
+    public static final class Config {
+        InetSocketAddress address;
+        int writeBufferCapacity;
+        int readBufferCapacity;
+        int soSndBuf;
+        int soRcvBuf;
+        long connectTimeoutMillis;
+        boolean tcpNoDelay;
+        String username;
+        String password;
+
+        @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
+        @RequiredArgsConstructor
+        public static final class Builder {
+
+            InetSocketAddress address;
+
+            @NonFinal
+            String username;
+
+            @NonFinal
+            String password;
+
+            @NonFinal
+            Integer writeCapacity;
+
+            @NonFinal
+            Integer readCapacity;
+
+            @NonFinal
+            Integer soRcvBuf;
+
+            @NonFinal
+            Integer soSndBuf;
+
+            @NonFinal
+            long timeout;
+
+            @NonFinal
+            boolean tcpNoDelay;
+
+            public Builder auth(
+                    final String username,
+                    final String password
+            ) {
+                this.username = username;
+                this.password = password;
+
+                return this;
+            }
+
+            public Builder auth(final String password) {
+                this.username = null;
+                this.password = password;
+
+                return this;
+            }
+
+            /**
+             * Сменить значение опции {@link java.net.StandardSocketOptions#SO_RCVBUF} на значение {@code value}
+             * <p>
+             * По умолчанию значение равно {@code 1024}.
+             *
+             * @param value новое значение опции
+             * @return {@code this}
+             */
+            public Builder soRcvBuf(final int value) {
+                this.soRcvBuf = value;
+                return this;
+            }
+
+            /**
+             * Сменить значение опции {@link java.net.StandardSocketOptions#SO_SNDBUF} на значение {@code value}
+             * <p>
+             * По умолчанию значение равно {@code 1024}.
+             *
+             * @param value новое значение опции
+             * @return {@code this}
+             */
+            public Builder soSndBuf(final int value) {
+                this.soSndBuf = value;
+                return this;
+            }
+
+            /**
+             * Сменить изначальный размер буфера записи
+             * <p>
+             * По умолчанию изначальный размер равен {@code 1024}.
+             *
+             * @param capacity новый изначальный размер буфера записи
+             * @return {@code this}
+             */
+            public Builder writeBufferCapacity(final int capacity) {
+                this.writeCapacity = capacity;
+
+                return this;
+            }
+
+            /**
+             * Сменить изначальный размер буфера чтения.
+             * <p>
+             * По умолчанию изначальный размер равен {@code 1024}.
+             *
+             * @param capacity новый изначальный размер буфера чтения
+             * @return {@code this}
+             */
+            public Builder readBufferCapacity(final int capacity) {
+                this.readCapacity = capacity;
+
+                return this;
+            }
+
+            /**
+             * Изменить таймаут подключения.
+             * <p>
+             * По умолчанию таймаут равен {@code 0}, т.е. ожидание подключения будет
+             * вечным, следуя документации {@link java.nio.channels.Selector#select(long)}.
+             *
+             * @param timeout  таймаут
+             * @param timeUnit единица времени, в которой измеряется таймаут
+             * @return {@code this}
+             */
+            public Builder connectTimeout(final long timeout, final TimeUnit timeUnit) {
+                this.timeout = timeUnit.toMillis(timeout);
+
+                return this;
+            }
+
+            /**
+             * Изменить опцию {@code TCP_NODELAY} для канала.
+             * <p>
+             * По умолчанию значение равно {@code false}.
+             *
+             * @param tcpNoDelay новое значение опции {@code TCP_NODELAY}
+             * @return {@code this}
+             */
+            public Builder tcpNoDelay(final boolean tcpNoDelay) {
+                this.tcpNoDelay = tcpNoDelay;
+
+                return this;
+            }
+
+            public Config build() {
+                return new Config(
+                        address,
+                        writeCapacity == null ? 1024 : writeCapacity,
+                        readCapacity == null ? 1024 : readCapacity,
+                        soSndBuf == null ? 1024 : soSndBuf,
+                        soRcvBuf == null ? 1024 : soRcvBuf,
+                        timeout,
+                        tcpNoDelay,
+                        username,
+                        password
+                );
+            }
+        }
+    }
+
+    public static abstract class RedisException extends RuntimeException {
+        protected RedisException(final String message) {
+            super(message);
+        }
+
+        protected RedisException(final String message, final Throwable cause) {
+            super(message, cause);
+        }
+    }
+
+    public static final class SocketException extends RedisException {
+        public SocketException(final String message, final Throwable cause) {
+            super(message, cause);
+        }
+    }
+
+    public static final class AuthException extends RedisException {
+        public AuthException(final String message) {
+            super(message);
         }
     }
 
