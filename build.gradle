@@ -40,10 +40,6 @@ group "io.github.whilein"
 version releaseVersion
 description "Lightweight and fast redis client for java"
 
-repositories {
-    mavenCentral()
-}
-
 publishing {
     publications {
         mavenJava(MavenPublication) {

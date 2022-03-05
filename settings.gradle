@@ -1,6 +1,10 @@
 rootProject.name = 'wredis'
 
 dependencyResolutionManagement {
+    repositories {
+        mavenCentral()
+    }
+
     versionCatalogs {
         libs {
             version("junit", "5.8.2")
