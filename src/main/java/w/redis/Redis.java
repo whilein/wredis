@@ -34,7 +34,7 @@ import java.net.Socket;
  * @author whilein
  */
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public final class Redis {
+public final class Redis implements AutoCloseable {
 
     InetSocketAddress address;
 
@@ -219,6 +219,7 @@ public final class Redis {
         return response;
     }
 
+    @Override
     @SneakyThrows
     public void close() {
         if (socket != null) {
